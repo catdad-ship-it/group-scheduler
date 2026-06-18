@@ -4,488 +4,171 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Brady's Little Helper</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          borderRadius: { '2xl': '1rem', '3xl': '1.25rem' }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --blue:           #3B82F6;
-      --blue-dark:      #2563EB;
-      --blue-light:     #EFF6FF;
-      --blue-border:    #BFDBFE;
-      --gray-50:        #F9FAFB;
-      --gray-100:       #F3F4F6;
-      --gray-200:       #E5E7EB;
-      --gray-400:       #9CA3AF;
-      --gray-600:       #4B5563;
-      --gray-800:       #1F2937;
-      --green:          #22C55E;
-      --green-dark:     #16A34A;
-      --green-light:    #F0FDF4;
-      --green-border:   #86EFAC;
-      --yellow:         #F59E0B;
-      --yellow-light:   #FFFBEB;
-      --red:            #EF4444;
-      --red-light:      #FEF2F2;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #fff;
-      color: var(--gray-800);
-      min-height: 100vh;
-      line-height: 1.5;
-    }
-
-    /* ── NAV ─────────────────────────────────────────── */
-    nav {
-      border-bottom: 1px solid var(--gray-200);
-      padding: 14px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .logo {
-      font-weight: 700;
-      font-size: 1rem;
-      color: var(--blue);
-      cursor: pointer;
-      user-select: none;
-    }
-    .nav-right { display: flex; align-items: center; gap: 10px; }
-
-    /* ── DASHBOARD ───────────────────────────────────── */
-    .poll-list { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
-    .poll-card {
-      border: 1px solid var(--gray-200);
-      border-radius: 10px;
-      padding: 16px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      text-decoration: none;
-      color: inherit;
-      transition: border-color 0.15s, background 0.15s;
-      cursor: pointer;
-      background: #fff;
-    }
-    .poll-card:hover { border-color: var(--blue); background: var(--blue-light); }
-    .poll-card-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 3px; }
-    .poll-card-meta  { font-size: 0.8rem; color: var(--gray-600); }
-    .poll-card-badge {
-      flex-shrink: 0;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    .badge-confirmed { background: var(--green-light); color: var(--green-dark); border: 1px solid var(--green-border); }
-    .badge-open      { background: var(--blue-light);  color: var(--blue-dark);  border: 1px solid var(--blue-border); }
-    .empty-state {
-      text-align: center; padding: 48px 20px;
-      color: var(--gray-400); font-size: 0.9rem;
-      background: var(--gray-50); border: 1px solid var(--gray-200);
-      border-radius: 10px; margin-top: 20px;
-    }
-
-    /* ── LAYOUT ──────────────────────────────────────── */
-    .container {
-      max-width: 620px;
-      margin: 0 auto;
-      padding: 40px 20px 80px;
-    }
-
-    /* ── VIEWS ───────────────────────────────────────── */
+    /* ── View routing ─────────────────────────────── */
     .view { display: none; }
     .view.active { display: block; }
 
-    /* ── HERO ────────────────────────────────────────── */
-    .hero {
-      text-align: center;
-      padding: 56px 0 40px;
-    }
-    .hero h1 {
-      font-size: 2.1rem;
-      font-weight: 700;
-      line-height: 1.2;
-      margin-bottom: 14px;
-    }
-    .hero p {
-      font-size: 1.05rem;
-      color: var(--gray-600);
-      max-width: 380px;
-      margin: 0 auto 32px;
-    }
-    .how-it-works {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-top: 48px;
-    }
-    .how-step {
-      flex: 1;
-      min-width: 140px;
-      max-width: 180px;
-      text-align: center;
-      padding: 20px 12px;
-      background: var(--gray-50);
-      border: 1px solid var(--gray-200);
-      border-radius: 12px;
-    }
-    .how-step .icon { font-size: 1.6rem; margin-bottom: 8px; }
-    .how-step strong { display: block; font-size: 0.9rem; margin-bottom: 4px; }
-    .how-step span { font-size: 0.8rem; color: var(--gray-600); }
-
-    /* ── BUTTONS ─────────────────────────────────────── */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      cursor: pointer;
-      border: none;
-      transition: background 0.15s, border-color 0.15s;
-      font-family: inherit;
-      text-decoration: none;
-    }
-    .btn-primary   { background: var(--blue); color: #fff; }
-    .btn-primary:hover { background: var(--blue-dark); }
-    .btn-secondary { background: #fff; color: var(--gray-800); border: 1px solid var(--gray-200); }
-    .btn-secondary:hover { background: var(--gray-50); }
-    .btn-green  { background: var(--green); color: #fff; }
-    .btn-green:hover { background: var(--green-dark); }
-    .btn-lg { padding: 13px 32px; font-size: 1rem; border-radius: 10px; }
-    .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
-    .btn-full { width: 100%; }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-    /* ── FORMS ───────────────────────────────────────── */
-    .page-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
-    .page-sub   { color: var(--gray-600); font-size: 0.9rem; margin-bottom: 28px; }
-
-    .form-group { margin-bottom: 16px; }
-    label {
-      display: block;
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--gray-600);
-      margin-bottom: 5px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    input[type="text"],
-    input[type="datetime-local"],
-    select {
-      width: 100%;
-      padding: 9px 13px;
-      border: 1px solid var(--gray-200);
-      border-radius: 8px;
-      font-size: 0.9rem;
-      color: var(--gray-800);
-      background: #fff;
-      font-family: inherit;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    input:focus, select:focus {
-      outline: none;
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
-    }
-    .error-msg { color: var(--red); font-size: 0.85rem; margin-top: 8px; min-height: 20px; }
-
-    /* ── DIVIDER ─────────────────────────────────────── */
-    .divider { border: none; border-top: 1px solid var(--gray-200); margin: 28px 0; }
-
-    /* ── SLOTS (CREATE) ──────────────────────────────── */
-    .slots-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-    .slot-item  { display: flex; gap: 8px; align-items: center; }
-    .slot-item input { flex: 1; }
-    .slot-remove {
-      background: none; border: none; cursor: pointer;
-      color: var(--gray-400); font-size: 1.1rem; padding: 4px 6px;
-      border-radius: 4px; line-height: 1; flex-shrink: 0;
-    }
-    .slot-remove:hover { color: var(--red); background: var(--red-light); }
-    .add-slot-btn {
-      width: 100%; padding: 9px;
-      background: var(--gray-50); border: 1px dashed var(--gray-200);
-      border-radius: 8px; color: var(--gray-600); cursor: pointer;
-      font-size: 0.875rem; font-family: inherit;
-      transition: all 0.15s;
-    }
-    .add-slot-btn:hover { background: var(--blue-light); border-color: var(--blue); color: var(--blue); }
-
-    /* ── CREATED PAGE ────────────────────────────────── */
-    .success-card {
-      background: var(--blue-light);
-      border: 1px solid var(--blue-border);
-      border-radius: 12px;
-      padding: 28px 24px;
-      text-align: center;
-      margin-bottom: 24px;
-    }
-    .success-card .icon { font-size: 2.2rem; margin-bottom: 10px; }
-    .success-card h2  { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
-    .success-card p   { color: var(--gray-600); font-size: 0.875rem; }
-    .link-row { display: flex; gap: 8px; margin: 20px 0; }
-    .link-row input { flex: 1; font-size: 0.85rem; background: #fff; }
-
-    /* ── POLL PAGE HEADER ────────────────────────────── */
-    .poll-header { margin-bottom: 28px; }
-    .poll-header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
-    .poll-meta { color: var(--gray-600); font-size: 0.875rem; }
-
-    /* ── CONFIRMED BANNER ────────────────────────────── */
-    .confirmed-banner {
-      display: flex; align-items: center; gap: 14px;
-      background: var(--green-light);
-      border: 1px solid var(--green-border);
-      border-radius: 10px;
-      padding: 16px 18px;
-      margin-bottom: 28px;
-    }
-    .confirmed-banner .icon { font-size: 1.4rem; flex-shrink: 0; }
-    .confirmed-banner strong { display: block; font-weight: 600; font-size: 0.9rem; }
-    .confirmed-banner span   { color: var(--gray-600); font-size: 0.85rem; }
-    .unconfirm-btn {
-      margin-left: auto; flex-shrink: 0;
-      background: none; border: 1px solid var(--green-border);
-      border-radius: 6px; padding: 4px 10px; cursor: pointer;
-      font-size: 0.75rem; color: var(--green-dark); font-family: inherit;
-    }
-    .unconfirm-btn:hover { background: white; }
-
-    /* ── VOTE SECTION ────────────────────────────────── */
-    .vote-card {
-      background: var(--gray-50);
-      border: 1px solid var(--gray-200);
-      border-radius: 12px;
-      padding: 22px 20px;
-      margin-bottom: 32px;
-    }
-    .vote-card h2 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
-
-    .vote-slots { display: flex; flex-direction: column; gap: 10px; margin: 18px 0; }
-    .vote-slot {
-      background: #fff;
-      border: 1px solid var(--gray-200);
-      border-radius: 8px;
-      padding: 12px 14px;
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    }
-    .slot-label .date { font-weight: 600; font-size: 0.875rem; }
-    .slot-label .time { color: var(--gray-600); font-size: 0.8rem; margin-top: 1px; }
-
-    .vote-btns { display: flex; gap: 5px; flex-shrink: 0; }
-    .vbtn {
-      padding: 5px 11px; border-radius: 6px;
-      border: 1px solid var(--gray-200); background: #fff;
-      cursor: pointer; font-size: 0.78rem; font-weight: 600;
-      color: var(--gray-600); transition: all 0.12s; font-family: inherit;
-    }
-    .vbtn:hover { border-color: var(--gray-400); }
-    .vbtn.sel-yes    { background: var(--green);  color: #fff; border-color: var(--green); }
-    .vbtn.sel-maybe  { background: var(--yellow); color: #fff; border-color: var(--yellow); }
-    .vbtn.sel-no     { background: var(--red);    color: #fff; border-color: var(--red); }
-
-    /* ── RESULTS ─────────────────────────────────────── */
-    .results-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px;
-    }
-    .results-header h2 { font-size: 1rem; font-weight: 700; }
-
-    .legend { display: flex; gap: 12px; font-size: 0.75rem; color: var(--gray-600); align-items: center; }
-    .legend-dot {
-      display: inline-flex; align-items: center; gap: 4px;
-    }
-    .dot {
-      width: 10px; height: 10px; border-radius: 50%; display: inline-block;
-    }
-    .dot-yes   { background: var(--green); }
-    .dot-maybe { background: var(--yellow); }
-    .dot-no    { background: var(--red); }
-
-    .results-wrap { overflow-x: auto; }
-    .results-table {
-      width: 100%; border-collapse: collapse;
-      font-size: 0.82rem; min-width: 360px;
-    }
-    .results-table th {
-      text-align: left; padding: 7px 10px;
-      color: var(--gray-600); font-weight: 600;
-      border-bottom: 2px solid var(--gray-200);
-      white-space: nowrap;
-    }
-    .results-table th.voter-col {
-      text-align: center; max-width: 80px;
-      overflow: hidden; text-overflow: ellipsis;
-    }
-    .results-table td { padding: 9px 10px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
-    .results-table tr:last-child td { border-bottom: none; }
-    .results-table tr.confirmed-row { background: var(--green-light); }
-
-    .slot-cell .sdate { font-weight: 600; }
-    .slot-cell .stime { color: var(--gray-600); font-size: 0.77rem; }
-
-    .vcell { text-align: center; }
-    .vdot {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 22px; height: 22px; border-radius: 50%; font-size: 0.7rem; font-weight: 700;
-    }
-    .vdot-yes   { background: var(--green);  color: #fff; }
-    .vdot-maybe { background: var(--yellow); color: #fff; }
-    .vdot-no    { background: var(--red-light); color: var(--red); }
-    .vdot-none  { background: var(--gray-100); color: var(--gray-400); }
-
-    .score-cell { font-weight: 700; color: var(--blue); white-space: nowrap; }
-    .action-cell { white-space: nowrap; }
-
-    .confirmed-tag {
-      display: inline-block; padding: 3px 9px;
-      background: var(--green-light); color: var(--green-dark);
-      border: 1px solid var(--green-border); border-radius: 20px;
-      font-size: 0.75rem; font-weight: 600;
-    }
-
-    .no-votes {
-      text-align: center; padding: 32px 20px;
-      color: var(--gray-400); font-size: 0.9rem;
-      background: var(--gray-50); border: 1px solid var(--gray-200);
-      border-radius: 10px;
-    }
-
-    /* ── POLL TYPE PICKER ───────────────────────────── */
-    .poll-type-picker {
-      display: flex; gap: 12px; margin-top: 28px; justify-content: center;
-    }
-    .poll-type-card {
-      flex: 1; max-width: 220px;
-      border: 2px solid var(--gray-200);
-      border-radius: 14px; padding: 22px 16px;
-      cursor: pointer; text-align: center;
-      transition: border-color 0.15s, background 0.15s;
-      background: #fff;
-    }
-    .poll-type-card:hover { border-color: var(--blue); background: var(--blue-light); }
-    .poll-type-card .icon { font-size: 2rem; margin-bottom: 10px; }
-    .poll-type-card strong { display: block; font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
-    .poll-type-card span { font-size: 0.8rem; color: var(--gray-600); }
-
-    /* ── QUESTION OPTIONS (CREATE) ───────────────────── */
-    .option-item  { display: flex; gap: 8px; align-items: center; }
-    .option-label {
-      width: 26px; height: 26px; flex-shrink: 0;
-      background: var(--gray-100); border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.75rem; font-weight: 700; color: var(--gray-600);
-    }
-    .option-item input { flex: 1; }
-
-    /* ── RANKED CHOICE VOTING ────────────────────────── */
-    .rc-options { display: flex; flex-direction: column; gap: 8px; margin: 18px 0; }
-    .rc-option {
-      background: #fff; border: 1px solid var(--gray-200);
-      border-radius: 8px; padding: 12px 14px;
-      display: flex; align-items: center; gap: 12px;
-      cursor: pointer; transition: border-color 0.15s, background 0.15s;
-      user-select: none;
-    }
-    .rc-option:hover { border-color: var(--blue); }
-    .rc-option.ranked { border-color: var(--blue); background: var(--blue-light); }
-    .rc-rank {
-      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-      background: var(--gray-100); border: 2px solid var(--gray-200);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.8rem; font-weight: 700; color: var(--gray-400);
-      transition: all 0.15s;
-    }
-    .rc-option.ranked .rc-rank {
-      background: var(--blue); border-color: var(--blue); color: #fff;
-    }
-    .rc-option-label { font-size: 0.9rem; font-weight: 500; }
-    .rc-hint { font-size: 0.8rem; color: var(--gray-400); margin-top: -10px; margin-bottom: 10px; }
-
-    /* ── QUESTION RESULTS ────────────────────────────── */
-    .q-results { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
-    .q-result-row { }
-    .q-result-header {
-      display: flex; justify-content: space-between; align-items: baseline;
-      margin-bottom: 4px;
-    }
-    .q-result-label { font-size: 0.9rem; font-weight: 600; }
-    .q-result-score { font-size: 0.8rem; color: var(--gray-600); }
-    .q-bar-track {
-      background: var(--gray-100); border-radius: 4px; height: 8px; overflow: hidden;
-    }
-    .q-bar-fill {
-      height: 100%; background: var(--blue); border-radius: 4px;
-      transition: width 0.4s ease;
-    }
-    .q-bar-fill.winner { background: var(--green); }
-    .q-result-voters { font-size: 0.75rem; color: var(--gray-400); margin-top: 3px; }
-
-    /* ── TOAST ───────────────────────────────────────── */
+    /* ── Toast ────────────────────────────────────── */
     .toast {
       position: fixed; bottom: 24px; left: 50%;
-      transform: translateX(-50%) translateY(70px);
-      background: var(--gray-800); color: #fff;
-      padding: 11px 20px; border-radius: 8px; font-size: 0.875rem;
-      transition: transform 0.25s ease; z-index: 999; white-space: nowrap;
-      pointer-events: none;
+      transform: translateX(-50%) translateY(80px);
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1000; pointer-events: none;
     }
     .toast.show { transform: translateX(-50%) translateY(0); }
 
-    /* ── LOADING ─────────────────────────────────────── */
-    .loading { text-align: center; padding: 72px 0; color: var(--gray-400); font-size: 0.9rem; }
+    /* ── Vote button selected states ──────────────── */
+    .vbtn { transition: all 0.12s; }
+    .vbtn.sel-yes   { background: #22c55e !important; color: #fff !important; border-color: #22c55e !important; }
+    .vbtn.sel-maybe { background: #f59e0b !important; color: #fff !important; border-color: #f59e0b !important; }
+    .vbtn.sel-no    { background: #ef4444 !important; color: #fff !important; border-color: #ef4444 !important; }
 
-    /* ── RESPONSIVE ──────────────────────────────────── */
-    @media (max-width: 500px) {
-      .hero h1 { font-size: 1.65rem; }
-      .vote-slot { flex-direction: column; align-items: flex-start; }
-      .vote-btns { width: 100%; }
-      .vbtn { flex: 1; text-align: center; }
+    /* ── Ranked choice ────────────────────────────── */
+    .rc-option { transition: all 0.15s; }
+    .rc-option.ranked { border-color: #3b82f6 !important; background: #eff6ff !important; }
+    .rc-option.ranked .rc-rank { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+
+    /* ── Vote dots ────────────────────────────────── */
+    .vdot {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; border-radius: 50%;
+      font-size: 11px; font-weight: 700;
+    }
+    .vdot-yes   { background: #dcfce7; color: #16a34a; }
+    .vdot-maybe { background: #fef9c3; color: #ca8a04; }
+    .vdot-no    { background: #fee2e2; color: #dc2626; }
+    .vdot-none  { background: #f3f4f6; color: #9ca3af; }
+
+    /* ── Confirmed result row ─────────────────────── */
+    .confirmed-row td { background: #f0fdf4; }
+
+    /* ── Bar fill animation ───────────────────────── */
+    .q-bar-fill { transition: width 0.5s ease; }
+
+    /* ── Datetime input ───────────────────────────── */
+    input[type="datetime-local"] { color-scheme: light; }
+
+    /* ── Lucide icon baseline alignment ──────────── */
+    [data-lucide] { display: inline-block; vertical-align: middle; }
+
+    /* ── Focus ring ───────────────────────────────── */
+    input:focus, select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
     }
   </style>
 </head>
-<body>
+<body class="bg-white text-gray-900 min-h-screen antialiased" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5;">
 
-<!-- NAV -->
-<nav>
-  <span class="logo" onclick="goHome()">📊 Brady's Little Helper</span>
-  <div class="nav-right">
-    <button id="nav-mypolls-btn" class="btn btn-secondary btn-sm" onclick="goToDashboard()" style="display:none">My Polls</button>
-    <button id="nav-login-btn"   class="btn btn-secondary btn-sm" onclick="showView('login')" style="display:none">Log In</button>
-    <button id="nav-logout-btn"  class="btn btn-secondary btn-sm" onclick="logout()" style="display:none">Log Out</button>
+<!-- ── NAV ──────────────────────────────────────────────── -->
+<nav class="sticky top-0 z-50 bg-white border-b border-gray-100">
+  <div class="max-w-2xl mx-auto px-5 h-14 flex items-center justify-between">
+    <button onclick="goHome()" class="flex items-center gap-2 font-bold text-blue-600 hover:text-blue-700 transition-colors text-sm">
+      <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
+      Brady's Little Helper
+    </button>
+    <div class="flex items-center gap-2">
+      <button id="nav-mypolls-btn" onclick="goToDashboard()" style="display:none"
+        class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
+        <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> My Polls
+      </button>
+      <button id="nav-login-btn" onclick="showView('login')" style="display:none"
+        class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
+        <i data-lucide="log-in" class="w-3.5 h-3.5"></i> Log In
+      </button>
+      <button id="nav-logout-btn" onclick="logout()" style="display:none"
+        class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
+        <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Log Out
+      </button>
+    </div>
   </div>
 </nav>
 
-<!-- TOAST -->
-<div id="toast" class="toast"></div>
+<!-- ── TOAST ─────────────────────────────────────────────── -->
+<div id="toast" class="toast bg-gray-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-xl whitespace-nowrap"></div>
 
 <!-- ════════════════════════════════════════════════════
      HOME VIEW
 ═════════════════════════════════════════════════════ -->
 <div id="view-home" class="view active">
-  <div class="container">
-    <div class="hero">
-      <h1>Group decisions,<br>made easy.</h1>
-      <p>Create a poll, share it with your group, and let everyone vote.</p>
-      <div class="poll-type-picker">
-        <div class="poll-type-card" onclick="startCreate('schedule')">
-          <div class="icon">📅</div>
-          <strong>Find a Time</strong>
-          <span>Pick the best meeting time from a set of options</span>
+  <div class="max-w-lg mx-auto px-5 pt-16 pb-24">
+
+    <!-- Hero -->
+    <div class="text-center mb-12">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-50 rounded-3xl mb-6">
+        <i data-lucide="bar-chart-2" class="w-8 h-8 text-blue-600"></i>
+      </div>
+      <h1 class="text-4xl font-bold tracking-tight text-gray-900 leading-tight mb-3">
+        Group decisions,<br>made easy.
+      </h1>
+      <p class="text-gray-500 text-lg leading-relaxed max-w-xs mx-auto">
+        Create a poll, share the link, and let everyone weigh in.
+      </p>
+    </div>
+
+    <!-- Poll type cards -->
+    <div class="grid grid-cols-2 gap-3 mb-14">
+      <button onclick="startCreate('schedule')"
+        class="group border-2 border-gray-100 hover:border-blue-300 bg-white hover:bg-blue-50 rounded-2xl p-5 text-left transition-all duration-150">
+        <div class="w-10 h-10 bg-blue-100 group-hover:bg-blue-200 rounded-xl flex items-center justify-center mb-4 transition-colors">
+          <i data-lucide="calendar" class="w-5 h-5 text-blue-600"></i>
         </div>
-        <div class="poll-type-card" onclick="startCreate('question')">
-          <div class="icon">🗳️</div>
-          <strong>Ask a Question</strong>
-          <span>Ranked-choice vote on any options you define</span>
+        <div class="font-semibold text-gray-900 mb-1 text-sm">Find a Time</div>
+        <div class="text-xs text-gray-500 leading-relaxed">Pick the best meeting time from a set of options</div>
+      </button>
+
+      <button onclick="startCreate('question')"
+        class="group border-2 border-gray-100 hover:border-purple-300 bg-white hover:bg-purple-50 rounded-2xl p-5 text-left transition-all duration-150">
+        <div class="w-10 h-10 bg-purple-100 group-hover:bg-purple-200 rounded-xl flex items-center justify-center mb-4 transition-colors">
+          <i data-lucide="list-checks" class="w-5 h-5 text-purple-600"></i>
+        </div>
+        <div class="font-semibold text-gray-900 mb-1 text-sm">Ask a Question</div>
+        <div class="text-xs text-gray-500 leading-relaxed">Ranked-choice vote on any options you define</div>
+      </button>
+    </div>
+
+    <!-- How it works -->
+    <div>
+      <p class="text-xs font-semibold text-gray-300 uppercase tracking-widest text-center mb-6">How it works</p>
+      <div class="grid grid-cols-3 gap-4">
+        <div class="text-center">
+          <div class="w-9 h-9 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <i data-lucide="plus-circle" class="w-4 h-4 text-gray-400"></i>
+          </div>
+          <div class="text-xs font-semibold text-gray-700 mb-0.5">Create</div>
+          <div class="text-xs text-gray-400">Add options or time slots</div>
+        </div>
+        <div class="text-center">
+          <div class="w-9 h-9 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <i data-lucide="share-2" class="w-4 h-4 text-gray-400"></i>
+          </div>
+          <div class="text-xs font-semibold text-gray-700 mb-0.5">Share</div>
+          <div class="text-xs text-gray-400">Send the link to your group</div>
+        </div>
+        <div class="text-center">
+          <div class="w-9 h-9 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+          </div>
+          <div class="text-xs font-semibold text-gray-700 mb-0.5">Decide</div>
+          <div class="text-xs text-gray-400">See results and confirm</div>
         </div>
       </div>
     </div>
@@ -496,43 +179,65 @@
      CREATE VIEW
 ═════════════════════════════════════════════════════ -->
 <div id="view-create" class="view">
-  <div class="container">
-    <h1 class="page-title" id="create-title">Create a Poll</h1>
-    <p class="page-sub" id="create-sub"></p>
+  <div class="max-w-lg mx-auto px-5 pt-8 pb-24">
+    <h1 class="text-2xl font-bold text-gray-900 mb-1" id="create-title">Create a Poll</h1>
+    <p class="text-sm text-gray-500 mb-7" id="create-sub"></p>
 
-    <div class="form-group">
-      <label for="poll-title" id="poll-title-label">Poll Title</label>
-      <input type="text" id="poll-title" placeholder="e.g. Team lunch, Project kickoff…" maxlength="120">
+    <div class="space-y-4 mb-6">
+      <div>
+        <label for="poll-title" id="poll-title-label"
+          class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Poll Title</label>
+        <input type="text" id="poll-title" maxlength="120"
+          placeholder="e.g. Team lunch, Project kickoff…"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
+      </div>
+      <div>
+        <label for="creator-name"
+          class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Your Name</label>
+        <input type="text" id="creator-name" maxlength="60" placeholder="Your name"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
+      </div>
     </div>
 
-    <div class="form-group">
-      <label for="creator-name">Your Name</label>
-      <input type="text" id="creator-name" placeholder="Your name" maxlength="60">
-    </div>
-
-    <hr class="divider">
+    <hr class="border-gray-100 mb-6">
 
     <!-- Schedule slots -->
     <div id="schedule-options-section">
-      <label style="margin-bottom:6px;">Time Options</label>
-      <p style="color:var(--gray-600);font-size:0.85rem;margin-bottom:12px;">Add the slots you want people to vote on. Times are interpreted in your browser's local timezone.</p>
-      <div class="slots-list" id="slots-list"></div>
-      <button class="add-slot-btn" onclick="addSlot()">+ Add a time slot</button>
+      <div class="mb-3">
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Time Options</label>
+        <p class="text-xs text-gray-400 mt-0.5">Times use your browser's local timezone</p>
+      </div>
+      <div class="space-y-2" id="slots-list"></div>
+      <button onclick="addSlot()"
+        class="mt-2 w-full py-2.5 border border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-1.5">
+        <i data-lucide="plus" class="w-4 h-4"></i> Add a time slot
+      </button>
     </div>
 
     <!-- Question options -->
     <div id="question-options-section" style="display:none">
-      <label style="margin-bottom:6px;">Options</label>
-      <p style="color:var(--gray-600);font-size:0.85rem;margin-bottom:12px;">Add the choices people will rank.</p>
-      <div class="slots-list" id="options-list"></div>
-      <button class="add-slot-btn" onclick="addOption()">+ Add an option</button>
+      <div class="mb-3">
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Options</label>
+        <p class="text-xs text-gray-400 mt-0.5">Add the choices people will rank</p>
+      </div>
+      <div class="space-y-2" id="options-list"></div>
+      <button onclick="addOption()"
+        class="mt-2 w-full py-2.5 border border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-1.5">
+        <i data-lucide="plus" class="w-4 h-4"></i> Add an option
+      </button>
     </div>
 
-    <div id="create-error" class="error-msg"></div>
+    <p id="create-error" class="text-red-500 text-sm mt-4 min-h-5"></p>
 
-    <div style="margin-top:24px;display:flex;gap:10px;">
-      <button class="btn btn-secondary" onclick="goHome()">Cancel</button>
-      <button class="btn btn-primary" id="create-btn" onclick="createPoll()">Create Poll →</button>
+    <div class="flex gap-3 mt-6">
+      <button onclick="goHome()"
+        class="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all">
+        Cancel
+      </button>
+      <button id="create-btn" onclick="createPoll()"
+        class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-60">
+        Create Poll <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>
     </div>
   </div>
 </div>
@@ -541,26 +246,38 @@
      CREATED VIEW
 ═════════════════════════════════════════════════════ -->
 <div id="view-created" class="view">
-  <div class="container">
-    <div class="success-card">
-      <div class="icon">🎉</div>
-      <h2>Your poll is ready!</h2>
-      <p>Share the link below. Participants can vote without creating an account.</p>
+  <div class="max-w-lg mx-auto px-5 pt-8 pb-24">
+
+    <div class="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-8 text-center mb-6">
+      <div class="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-md shadow-blue-200">
+        <i data-lucide="check" class="w-7 h-7 text-white"></i>
+      </div>
+      <h2 class="text-xl font-bold text-gray-900 mb-2">Your poll is ready!</h2>
+      <p class="text-sm text-gray-500">Share the link below. Participants can vote without an account.</p>
     </div>
 
-    <div class="link-row">
-      <input type="text" id="share-link" readonly>
-      <button class="btn btn-primary" onclick="copyLink()">Copy</button>
+    <div class="flex gap-2 mb-3">
+      <input type="text" id="share-link" readonly
+        class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-500 bg-gray-50 cursor-default">
+      <button onclick="copyLink()"
+        class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all whitespace-nowrap">
+        <i data-lucide="copy" class="w-4 h-4"></i> Copy
+      </button>
     </div>
 
-    <p style="color:var(--gray-600);font-size:0.85rem;margin-bottom:20px;">
-      You can confirm the final time from the results page — just open the link yourself anytime.
+    <p class="text-xs text-gray-400 mb-6 flex items-start gap-1.5">
+      <i data-lucide="info" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-300"></i>
+      Confirm the final time from the results page — just open your link anytime.
     </p>
 
-    <button class="btn btn-primary btn-lg btn-full" onclick="goToPoll()">View Poll &amp; Results →</button>
-    <div style="margin-top:10px;">
-      <button class="btn btn-secondary btn-full" onclick="showView('create')">Create Another Poll</button>
-    </div>
+    <button onclick="goToPoll()"
+      class="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all mb-3">
+      View Poll &amp; Results <i data-lucide="arrow-right" class="w-4 h-4"></i>
+    </button>
+    <button onclick="startCreate(createPollType)"
+      class="w-full py-3 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
+      Create Another Poll
+    </button>
   </div>
 </div>
 
@@ -568,8 +285,8 @@
      POLL VIEW
 ═════════════════════════════════════════════════════ -->
 <div id="view-poll" class="view">
-  <div class="container" id="poll-container">
-    <div class="loading">Loading poll…</div>
+  <div class="max-w-2xl mx-auto px-5 pt-6 pb-24" id="poll-container">
+    <div class="text-center py-20 text-gray-400 text-sm">Loading poll…</div>
   </div>
 </div>
 
@@ -577,21 +294,27 @@
      LOGIN VIEW
 ═════════════════════════════════════════════════════ -->
 <div id="view-login" class="view">
-  <div class="container" style="max-width:400px">
-    <h1 class="page-title" style="margin-top:40px">My Polls</h1>
-    <p class="page-sub">Enter your password to see all your polls.</p>
+  <div class="max-w-sm mx-auto px-5 pt-12 pb-24">
+    <div class="text-center mb-8">
+      <div class="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <i data-lucide="lock" class="w-5 h-5 text-gray-500"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900">My Polls</h1>
+      <p class="text-sm text-gray-500 mt-1">Enter your password to see all your polls</p>
+    </div>
 
-    <div class="form-group">
-      <label for="login-password">Password</label>
+    <div class="mb-1">
+      <label for="login-password" class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Password</label>
       <input type="password" id="login-password" placeholder="Enter password"
-             onkeydown="if(event.key==='Enter') submitLogin()">
+        onkeydown="if(event.key==='Enter') submitLogin()"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm transition-all placeholder-gray-300">
     </div>
+    <p id="login-error" class="text-red-500 text-sm mb-4 min-h-5"></p>
 
-    <div id="login-error" class="error-msg"></div>
-
-    <div style="margin-top:20px">
-      <button class="btn btn-primary btn-full" id="login-btn" onclick="submitLogin()">Log In →</button>
-    </div>
+    <button id="login-btn" onclick="submitLogin()"
+      class="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60">
+      Log In <i data-lucide="arrow-right" class="w-4 h-4"></i>
+    </button>
   </div>
 </div>
 
@@ -599,27 +322,38 @@
      DASHBOARD VIEW
 ═════════════════════════════════════════════════════ -->
 <div id="view-dashboard" class="view">
-  <div class="container">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:4px">
-      <h1 class="page-title">My Polls</h1>
-      <button class="btn btn-primary btn-sm" onclick="showView('create')">+ New Poll</button>
+  <div class="max-w-lg mx-auto px-5 pt-8 pb-24">
+    <div class="flex items-center justify-between mb-1">
+      <h1 class="text-2xl font-bold text-gray-900">My Polls</h1>
+      <button onclick="goHome()"
+        class="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-all">
+        <i data-lucide="plus" class="w-4 h-4"></i> New Poll
+      </button>
     </div>
-    <p class="page-sub">All polls you've created.</p>
-    <div id="dashboard-list" class="poll-list">
-      <div class="loading">Loading…</div>
+    <p class="text-sm text-gray-400 mb-6">All polls you've created</p>
+    <div id="dashboard-list" class="space-y-2">
+      <div class="text-center py-12 text-gray-400 text-sm">Loading…</div>
     </div>
   </div>
 </div>
 
+
 <script>
+// ─────────────────────────────────────────────────────────
+// LUCIDE RENDER HELPER — call after any innerHTML update
+// ─────────────────────────────────────────────────────────
+function renderIcons() {
+  if (window.lucide) lucide.createIcons();
+}
+
 // ────────────────────────────────────────────────────
 // STATE
 // ────────────────────────────────────────────────────
 let currentPollId   = null;
 let currentPoll     = null;
-let voteResponses   = {};   // schedule: slotId → 'yes'|'maybe'|'no' | question: slotId → rank (int) | null
+let voteResponses   = {};
 let isAdmin         = false;
-let createPollType  = 'schedule'; // 'schedule' | 'question'
+let createPollType  = 'schedule';
 
 // ────────────────────────────────────────────────────
 // AUTH / NAV STATE
@@ -663,7 +397,9 @@ async function submitLogin() {
   } catch (e) {
     errEl.textContent = e.message;
   } finally {
-    btn.disabled = false; btn.textContent = 'Log In →';
+    btn.disabled = false;
+    btn.innerHTML = 'Log In <i data-lucide="arrow-right" class="w-4 h-4"></i>';
+    renderIcons();
   }
 }
 
@@ -682,7 +418,7 @@ async function goToDashboard() {
 
 async function loadDashboard() {
   const list = document.getElementById('dashboard-list');
-  list.innerHTML = '<div class="loading">Loading…</div>';
+  list.innerHTML = '<div class="text-center py-12 text-gray-400 text-sm">Loading…</div>';
   try {
     const res = await fetch('/api/admin/polls');
     if (res.status === 401) {
@@ -693,29 +429,46 @@ async function loadDashboard() {
     }
     const polls = await res.json();
     if (polls.length === 0) {
-      list.innerHTML = '<div class="empty-state">No polls yet — create your first one!</div>';
+      list.innerHTML = `
+        <div class="text-center py-12 bg-gray-50 border border-gray-100 rounded-2xl">
+          <i data-lucide="inbox" class="w-8 h-8 text-gray-300 mx-auto mb-3"></i>
+          <p class="text-sm text-gray-400">No polls yet — create your first one!</p>
+        </div>`;
+      renderIcons();
       return;
     }
-    const tz = getUserTimezone();
     list.innerHTML = polls.map(poll => {
       const isConfirmed = !!poll.confirmedSlot;
       const date = new Date(poll.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const voteCount = poll.votes.length;
-      const typeLabel = poll.type === 'question' ? '🗳️ Question' : '📅 Schedule';
+      const typeIcon = poll.type === 'question'
+        ? '<i data-lucide="list-checks" class="w-3.5 h-3.5 text-purple-500"></i>'
+        : '<i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>';
+      const typeLabel = poll.type === 'question' ? 'Question' : 'Schedule';
       const badge = isConfirmed
-        ? '<span class="poll-card-badge badge-confirmed">Confirmed ✓</span>'
-        : '<span class="poll-card-badge badge-open">Open</span>';
+        ? `<span class="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full whitespace-nowrap">
+             <i data-lucide="check-circle" class="w-3 h-3"></i> Confirmed
+           </span>`
+        : `<span class="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full whitespace-nowrap">Open</span>`;
       return `
-        <div class="poll-card" onclick="openPollFromDashboard('${poll.id}')">
-          <div>
-            <div class="poll-card-title">${esc(poll.title)}</div>
-            <div class="poll-card-meta">${typeLabel} · Created ${esc(date)} · ${voteCount} response${voteCount !== 1 ? 's' : ''}</div>
+        <div onclick="openPollFromDashboard('${poll.id}')"
+          class="bg-white border border-gray-100 hover:border-blue-200 hover:bg-blue-50 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 cursor-pointer transition-all">
+          <div class="min-w-0">
+            <div class="font-semibold text-sm text-gray-900 mb-0.5 truncate">${esc(poll.title)}</div>
+            <div class="flex items-center gap-2 text-xs text-gray-400">
+              ${typeIcon} ${typeLabel}
+              <span class="text-gray-200">·</span>
+              ${esc(date)}
+              <span class="text-gray-200">·</span>
+              <i data-lucide="users" class="w-3 h-3"></i> ${voteCount}
+            </div>
           </div>
           ${badge}
         </div>`;
     }).join('');
+    renderIcons();
   } catch {
-    list.innerHTML = '<p style="color:var(--red);padding:20px 0">Error loading polls — please refresh.</p>';
+    list.innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Error loading polls — please refresh.</p>';
   }
 }
 
@@ -736,12 +489,8 @@ async function init() {
   const pollId = params.get('poll');
 
   if (path === '/dashboard') {
-    if (isAdmin) {
-      showView('dashboard');
-      loadDashboard();
-    } else {
-      showView('login');
-    }
+    if (isAdmin) { showView('dashboard'); loadDashboard(); }
+    else         { showView('login'); }
   } else if (pollId) {
     currentPollId = pollId;
     showView('poll');
@@ -755,6 +504,7 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
   window.scrollTo(0, 0);
+  renderIcons();
 }
 
 function startCreate(type) {
@@ -807,7 +557,7 @@ function tzSelectHTML(id, selected) {
   const options = getTimezones().map(tz =>
     `<option value="${esc(tz)}"${tz === selected ? ' selected' : ''}>${tz.replace(/_/g, ' ')}</option>`
   ).join('');
-  return `<select id="${id}">${options}</select>`;
+  return `<select id="${id}" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">${options}</select>`;
 }
 
 // ────────────────────────────────────────────────────
@@ -819,8 +569,8 @@ function initCreateForm() {
   document.getElementById('create-error').textContent = '';
 
   const isQ = createPollType === 'question';
-  document.getElementById('create-title').textContent     = isQ ? 'Ask a Question' : 'Find a Time';
-  document.getElementById('create-sub').textContent       = isQ
+  document.getElementById('create-title').textContent = isQ ? 'Ask a Question' : 'Find a Time';
+  document.getElementById('create-sub').textContent   = isQ
     ? 'Add your question and the options people will rank.'
     : 'Add your details and the time options you want people to vote on.';
   document.getElementById('poll-title-label').textContent = isQ ? 'Your Question' : 'Poll Title';
@@ -850,13 +600,17 @@ function addSlot() {
   const minVal = localDatetimeValue(new Date());
 
   const div = document.createElement('div');
-  div.className = 'slot-item';
+  div.className = 'flex gap-2 items-center';
   div.id = uid;
   div.innerHTML = `
-    <input type="datetime-local" value="${localDatetimeValue(dflt)}" min="${minVal}">
-    <button class="slot-remove" onclick="removeSlot('${uid}')" title="Remove">✕</button>
-  `;
+    <input type="datetime-local" value="${localDatetimeValue(dflt)}" min="${minVal}"
+      class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">
+    <button onclick="removeSlot('${uid}')" title="Remove"
+      class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
+      <i data-lucide="x" class="w-4 h-4"></i>
+    </button>`;
   list.appendChild(div);
+  renderIcons();
 }
 
 function removeSlot(id) {
@@ -873,15 +627,19 @@ function addOption() {
   const idx  = list.children.length;
   const uid  = 'opt_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
   const div  = document.createElement('div');
-  div.className = 'slot-item option-item';
+  div.className = 'flex gap-2 items-center';
   div.id = uid;
   div.innerHTML = `
-    <span class="option-label">${OPTION_LETTERS[idx] || (idx+1)}</span>
-    <input type="text" placeholder="Option ${OPTION_LETTERS[idx] || idx+1}" maxlength="120">
-    <button class="slot-remove" onclick="removeOption('${uid}')" title="Remove">✕</button>
-  `;
+    <span class="w-7 h-7 shrink-0 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 option-label">${OPTION_LETTERS[idx] || (idx+1)}</span>
+    <input type="text" placeholder="Option ${OPTION_LETTERS[idx] || idx+1}" maxlength="120"
+      class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
+    <button onclick="removeOption('${uid}')" title="Remove"
+      class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
+      <i data-lucide="x" class="w-4 h-4"></i>
+    </button>`;
   list.appendChild(div);
   refreshOptionLabels();
+  renderIcons();
 }
 
 function removeOption(id) {
@@ -942,7 +700,9 @@ async function createPoll() {
   } catch (e) {
     errEl.textContent = e.message;
   } finally {
-    btn.disabled = false; btn.textContent = 'Create Poll →';
+    btn.disabled = false;
+    btn.innerHTML = 'Create Poll <i data-lucide="arrow-right" class="w-4 h-4"></i>';
+    renderIcons();
   }
 }
 
@@ -955,7 +715,10 @@ function copyLink() {
 }
 
 function goToPoll() {
-  if (currentPollId) location.href = `/?poll=${currentPollId}`;
+  if (!currentPollId) return;
+  history.pushState({}, '', `/?poll=${currentPollId}`);
+  showView('poll');
+  loadPoll(currentPollId);
 }
 
 // ────────────────────────────────────────────────────
@@ -967,19 +730,24 @@ async function loadPoll(id) {
     const res = await fetch(`/api/polls/${id}`);
     if (res.status === 404) {
       container.innerHTML = `
-        <div style="text-align:center;padding:64px 0">
-          <div style="font-size:2rem;margin-bottom:12px">🤔</div>
-          <h2 style="margin-bottom:8px">Poll not found</h2>
-          <p style="color:var(--gray-600);margin-bottom:24px">This poll may have been deleted or the link is incorrect.</p>
-          <button class="btn btn-primary" onclick="goHome()">Go Home</button>
+        <div class="text-center py-20">
+          <div class="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <i data-lucide="search-x" class="w-7 h-7 text-gray-400"></i>
+          </div>
+          <h2 class="text-lg font-bold text-gray-900 mb-2">Poll not found</h2>
+          <p class="text-sm text-gray-400 mb-6">This poll may have been deleted or the link is incorrect.</p>
+          <button onclick="goHome()" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all">
+            <i data-lucide="home" class="w-4 h-4"></i> Go Home
+          </button>
         </div>`;
+      renderIcons();
       return;
     }
     if (!res.ok) throw new Error('Server error');
     currentPoll = await res.json();
     renderPoll();
   } catch (e) {
-    container.innerHTML = `<p style="color:var(--red);padding:40px 0;text-align:center">Error loading poll — please refresh.</p>`;
+    container.innerHTML = `<p class="text-red-500 text-sm text-center py-12">Error loading poll — please refresh.</p>`;
   }
 }
 
@@ -997,65 +765,71 @@ function renderPoll() {
 function renderQuestionPoll() {
   const poll = currentPoll;
   document.getElementById('poll-container').innerHTML = `
-    <div class="poll-header">
-      <h1>${esc(poll.title)}</h1>
-      <p class="poll-meta">Created by <strong>${esc(poll.creatorName)}</strong> · ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}</p>
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900 mb-1">${esc(poll.title)}</h1>
+      <div class="flex items-center gap-2 text-sm text-gray-400">
+        <i data-lucide="user" class="w-3.5 h-3.5"></i>
+        Created by <strong class="text-gray-600">${esc(poll.creatorName)}</strong>
+        <span class="text-gray-200">·</span>
+        <i data-lucide="users" class="w-3.5 h-3.5"></i>
+        ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}
+      </div>
     </div>
-    <div class="vote-card" id="q-vote-card">
+    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6" id="q-vote-card">
       ${renderQuestionVoteForm(poll)}
     </div>
     <div id="q-results-section">
       ${renderQuestionResults(poll)}
-    </div>
-  `;
+    </div>`;
+  renderIcons();
 }
 
 function renderQuestionVoteForm(poll) {
   const optionsHTML = poll.slots.map(opt => {
     const rank = voteResponses[opt.id] || null;
     return `
-      <div class="rc-option${rank ? ' ranked' : ''}" id="rc-${opt.id}" onclick="toggleRank('${opt.id}')">
-        <div class="rc-rank">${rank || ''}</div>
-        <div class="rc-option-label">${esc(opt.label)}</div>
+      <div class="rc-option bg-white border-2 border-gray-100 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer select-none${rank ? ' ranked' : ''}"
+        id="rc-${opt.id}" onclick="toggleRank('${opt.id}')">
+        <div class="rc-rank w-7 h-7 rounded-full border-2 border-gray-200 bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-400 shrink-0 transition-all">${rank || ''}</div>
+        <div class="text-sm font-medium text-gray-800">${esc(opt.label)}</div>
       </div>`;
   }).join('');
 
   return `
-    <h2>Cast Your Vote</h2>
-    <p style="color:var(--gray-600);font-size:0.875rem;margin-bottom:4px;">Tap options in order of preference — 1st pick, 2nd pick, etc.</p>
-    <p class="rc-hint">Tap a ranked option again to remove it.</p>
-    <div class="form-group">
-      <label for="vote-name">Your Name</label>
-      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60">
+    <h2 class="font-bold text-gray-900 mb-1">Cast Your Vote</h2>
+    <p class="text-xs text-gray-400 mb-4">Tap options in order of preference — 1st pick, 2nd, etc. Tap again to remove.</p>
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Your Name</label>
+      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
     </div>
-    <div class="rc-options" id="rc-options">${optionsHTML}</div>
-    <div id="vote-error" class="error-msg"></div>
-    <button class="btn btn-primary" id="vote-btn" onclick="submitQuestionVote()">Submit Vote</button>
-  `;
+    <div class="space-y-2 mb-4" id="rc-options">${optionsHTML}</div>
+    <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
+    <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
+      id="vote-btn" onclick="submitQuestionVote()">
+      <i data-lucide="send" class="w-4 h-4"></i> Submit Vote
+    </button>`;
 }
 
 function toggleRank(optId) {
   const currentRank = voteResponses[optId] || null;
   if (currentRank) {
-    // Un-rank it; shift higher ranks down
     const removed = currentRank;
     voteResponses[optId] = null;
     currentPoll.slots.forEach(s => {
       if (voteResponses[s.id] > removed) voteResponses[s.id]--;
     });
   } else {
-    // Assign next rank
     const maxRank = Math.max(0, ...currentPoll.slots.map(s => voteResponses[s.id] || 0));
     voteResponses[optId] = maxRank + 1;
   }
-  // Re-render just the options
   const container = document.getElementById('rc-options');
   if (!container) return;
   currentPoll.slots.forEach(opt => {
     const el = document.getElementById('rc-' + opt.id);
     if (!el) return;
     const rank = voteResponses[opt.id] || null;
-    el.className = 'rc-option' + (rank ? ' ranked' : '');
+    el.className = 'rc-option bg-white border-2 border-gray-100 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer select-none' + (rank ? ' ranked' : '');
     el.querySelector('.rc-rank').textContent = rank || '';
   });
 }
@@ -1070,7 +844,6 @@ async function submitQuestionVote() {
   const hasAnyRank = currentPoll.slots.some(s => voteResponses[s.id]);
   if (!hasAnyRank) { errEl.textContent = 'Please rank at least one option.'; return; }
 
-  // Build responses: slotId → rank (as string to match existing vote schema)
   const responses = {};
   currentPoll.slots.forEach(s => {
     if (voteResponses[s.id]) responses[s.id] = String(voteResponses[s.id]);
@@ -1086,19 +859,20 @@ async function submitQuestionVote() {
       body: JSON.stringify({ name, timezone: 'UTC', responses })
     });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
-    showToast('Vote submitted! 🎉');
+    showToast('Vote submitted!');
     voteResponses = {};
     await loadPoll(currentPollId);
   } catch (e) {
     errEl.textContent = e.message;
-    btn.disabled = false; btn.textContent = 'Submit Vote';
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Submit Vote';
+    renderIcons();
   }
 }
 
 function renderQuestionResults(poll) {
   const n = poll.slots.length;
 
-  // Borda count: rank 1 = n pts, rank 2 = n-1 pts, ..., unranked = 0
   const scores = {};
   const firstChoices = {};
   poll.slots.forEach(s => { scores[s.id] = 0; firstChoices[s.id] = 0; });
@@ -1118,8 +892,14 @@ function renderQuestionResults(poll) {
   const winnerScore = scores[sorted[0].id];
 
   if (poll.votes.length === 0) {
-    return `<div class="results-header"><h2>Results</h2></div>
-      <div class="no-votes">No votes yet — share the link to get responses!</div>`;
+    return `
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-gray-900">Results</h2>
+      </div>
+      <div class="text-center py-10 bg-gray-50 border border-gray-100 rounded-2xl">
+        <i data-lucide="bar-chart-2" class="w-8 h-8 text-gray-300 mx-auto mb-3"></i>
+        <p class="text-sm text-gray-400">No votes yet — share the link to get responses!</p>
+      </div>`;
   }
 
   const rows = sorted.map((opt, i) => {
@@ -1132,72 +912,79 @@ function renderQuestionResults(poll) {
       .map(v => esc(v.name)).join(', ');
 
     return `
-      <div class="q-result-row">
-        <div class="q-result-header">
-          <span class="q-result-label">${isWinner && i === 0 ? '🏆 ' : ''}${esc(opt.label)}</span>
-          <span class="q-result-score">${score} pt${score !== 1 ? 's' : ''}</span>
+      <div>
+        <div class="flex justify-between items-baseline mb-1.5">
+          <span class="text-sm font-semibold text-gray-800">${isWinner && i === 0 ? '<span class="text-amber-500 mr-1">🏆</span>' : ''}${esc(opt.label)}</span>
+          <span class="text-xs text-gray-400">${score} pt${score !== 1 ? 's' : ''}</span>
         </div>
-        <div class="q-bar-track">
-          <div class="q-bar-fill${isWinner && i === 0 ? ' winner' : ''}" style="width:${pct}%"></div>
+        <div class="bg-gray-100 rounded-full h-2 overflow-hidden mb-1">
+          <div class="q-bar-fill h-full rounded-full ${isWinner && i === 0 ? 'bg-green-500' : 'bg-blue-500'}" style="width:${pct}%"></div>
         </div>
-        ${voters1st > 0 ? `<div class="q-result-voters">${voters1st} first choice${voters1st !== 1 ? 's' : ''}: ${voterNames}</div>` : ''}
+        ${voters1st > 0 ? `<p class="text-xs text-gray-400">${voters1st} first choice${voters1st !== 1 ? 's' : ''}: ${voterNames}</p>` : ''}
       </div>`;
   }).join('');
 
   return `
-    <div class="results-header"><h2>Results</h2>
-      <span style="font-size:0.75rem;color:var(--gray-400)">Ranked-choice scoring</span>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-gray-900">Results</h2>
+      <span class="text-xs text-gray-400">Ranked-choice scoring</span>
     </div>
-    <div class="q-results">${rows}</div>
-    <p style="margin-top:12px;font-size:0.78rem;color:var(--gray-400)">
-      Points: 1st pick = ${n} pts, 2nd = ${n-1} pts, etc.
-    </p>`;
+    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 space-y-4">
+      ${rows}
+    </div>
+    <p class="mt-3 text-xs text-gray-400">Points: 1st pick = ${n} pts, 2nd = ${n-1} pts, etc.</p>`;
 }
 
 // ────────────────────────────────────────────────────
-// SCHEDULE POLL RENDER (existing, renamed)
+// SCHEDULE POLL RENDER
 // ────────────────────────────────────────────────────
 function renderSchedulePoll() {
   const poll = currentPoll;
   const tz   = getUserTimezone();
 
-  // Ensure vote state exists for all slots
   poll.slots.forEach(s => { if (!(s.id in voteResponses)) voteResponses[s.id] = null; });
 
-  // Confirmed banner
   let banner = '';
   if (poll.confirmedSlot) {
     const cs = poll.slots.find(s => s.id === poll.confirmedSlot);
     if (cs) {
       const { dateStr, timeStr } = formatSlot(cs.datetime, tz);
       banner = `
-        <div class="confirmed-banner">
-          <div class="icon">✅</div>
-          <div>
-            <strong>Time Confirmed</strong>
-            <span>${esc(dateStr)} at ${esc(timeStr)}</span>
+        <div class="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3.5 mb-6">
+          <div class="w-8 h-8 bg-green-500 rounded-xl flex items-center justify-center shrink-0">
+            <i data-lucide="check" class="w-4 h-4 text-white"></i>
           </div>
-          <button class="unconfirm-btn" onclick="unconfirmSlot()">Unconfirm</button>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold text-green-800">Time Confirmed</div>
+            <div class="text-xs text-green-600">${esc(dateStr)} at ${esc(timeStr)}</div>
+          </div>
+          <button onclick="unconfirmSlot()"
+            class="text-xs text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-1.5 rounded-lg shrink-0 transition-all">
+            Unconfirm
+          </button>
         </div>`;
     }
   }
 
   document.getElementById('poll-container').innerHTML = `
-    <div class="poll-header">
-      <h1>${esc(poll.title)}</h1>
-      <p class="poll-meta">Created by <strong>${esc(poll.creatorName)}</strong> · ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}</p>
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900 mb-1">${esc(poll.title)}</h1>
+      <div class="flex items-center gap-2 text-sm text-gray-400">
+        <i data-lucide="user" class="w-3.5 h-3.5"></i>
+        Created by <strong class="text-gray-600">${esc(poll.creatorName)}</strong>
+        <span class="text-gray-200">·</span>
+        <i data-lucide="users" class="w-3.5 h-3.5"></i>
+        ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}
+      </div>
     </div>
-
     ${banner}
-
-    <div class="vote-card" id="vote-card">
+    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6" id="vote-card">
       ${renderVoteForm(poll, tz)}
     </div>
-
     <div id="results-section">
       ${renderResults(poll, tz)}
-    </div>
-  `;
+    </div>`;
+  renderIcons();
 }
 
 // ────────────────────────────────────────────────────
@@ -1208,33 +995,36 @@ function renderVoteForm(poll, tz) {
     const { dateStr, timeStr } = formatSlot(slot.datetime, tz);
     const r = voteResponses[slot.id];
     return `
-      <div class="vote-slot" id="vs-${slot.id}">
-        <div class="slot-label">
-          <div class="date">${esc(dateStr)}</div>
-          <div class="time">${esc(timeStr)}</div>
+      <div class="bg-white border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3" id="vs-${slot.id}">
+        <div class="slot-label min-w-0">
+          <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
+          <div class="text-xs text-gray-400">${esc(timeStr)}</div>
         </div>
-        <div class="vote-btns">
-          <button class="vbtn ${r==='yes'   ? 'sel-yes'   : ''}" onclick="setVote('${slot.id}','yes')">✓ Yes</button>
-          <button class="vbtn ${r==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slot.id}','maybe')">~ Maybe</button>
-          <button class="vbtn ${r==='no'    ? 'sel-no'    : ''}" onclick="setVote('${slot.id}','no')">✗ No</button>
+        <div class="vote-btns flex gap-1.5 shrink-0">
+          <button class="vbtn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='yes'   ? 'sel-yes'   : ''}" onclick="setVote('${slot.id}','yes')">✓ Yes</button>
+          <button class="vbtn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slot.id}','maybe')">~ If I have to</button>
+          <button class="vbtn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='no'    ? 'sel-no'    : ''}" onclick="setVote('${slot.id}','no')">✗ No</button>
         </div>
       </div>`;
   }).join('');
 
   return `
-    <h2>Cast Your Vote</h2>
-    <div class="form-group">
-      <label for="vote-name">Your Name</label>
-      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60">
+    <h2 class="font-bold text-gray-900 mb-4">Cast Your Vote</h2>
+    <div class="mb-3">
+      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Your Name</label>
+      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
     </div>
-    <div class="form-group">
-      <label for="vote-tz">Your Timezone</label>
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Your Timezone</label>
       ${tzSelectHTML('vote-tz', tz)}
     </div>
-    <div class="vote-slots" id="vote-slots">${slotsHTML}</div>
-    <div id="vote-error" class="error-msg"></div>
-    <button class="btn btn-primary" id="vote-btn" onclick="submitVote()">Submit Vote</button>
-  `;
+    <div class="space-y-2 mb-4" id="vote-slots">${slotsHTML}</div>
+    <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
+    <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
+      id="vote-btn" onclick="submitVote()">
+      <i data-lucide="send" class="w-4 h-4"></i> Submit Vote
+    </button>`;
 }
 
 function setVote(slotId, value) {
@@ -1245,9 +1035,9 @@ function setVote(slotId, value) {
   const el = document.getElementById('vs-' + slotId);
   if (!el) return;
   el.querySelector('.vote-btns').innerHTML = `
-    <button class="vbtn ${value==='yes'   ? 'sel-yes'   : ''}" onclick="setVote('${slotId}','yes')">✓ Yes</button>
-    <button class="vbtn ${value==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slotId}','maybe')">~ Maybe</button>
-    <button class="vbtn ${value==='no'    ? 'sel-no'    : ''}" onclick="setVote('${slotId}','no')">✗ No</button>
+    <button class="vbtn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${value==='yes'   ? 'sel-yes'   : ''}" onclick="setVote('${slotId}','yes')">✓ Yes</button>
+    <button class="vbtn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${value==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slotId}','maybe')">~ If I have to</button>
+    <button class="vbtn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${value==='no'    ? 'sel-no'    : ''}" onclick="setVote('${slotId}','no')">✗ No</button>
   `;
 }
 
@@ -1259,7 +1049,6 @@ async function submitVote() {
 
   if (!name) { errEl.textContent = 'Please enter your name.'; return; }
 
-  // Default unset slots to 'no'
   const responses = {};
   currentPoll.slots.forEach(s => { responses[s.id] = voteResponses[s.id] || 'no'; });
 
@@ -1273,12 +1062,14 @@ async function submitVote() {
       body: JSON.stringify({ name, timezone, responses })
     });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
-    showToast('Vote submitted! 🎉');
+    showToast('Vote submitted!');
     voteResponses = {};
     await loadPoll(currentPollId);
   } catch (e) {
     errEl.textContent = e.message;
-    btn.disabled = false; btn.textContent = 'Submit Vote';
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Submit Vote';
+    renderIcons();
   }
 }
 
@@ -1286,22 +1077,26 @@ async function submitVote() {
 // RESULTS TABLE
 // ────────────────────────────────────────────────────
 function renderResults(poll, tz) {
-  const headerH2 = `
-    <div class="results-header">
-      <h2>Results</h2>
-      <div class="legend">
-        <span class="legend-dot"><span class="dot dot-yes"></span> Yes</span>
-        <span class="legend-dot"><span class="dot dot-maybe"></span> Maybe</span>
-        <span class="legend-dot"><span class="dot dot-no"></span> No</span>
+  const header = `
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-gray-900">Results</h2>
+      <div class="flex items-center gap-3 text-xs text-gray-400">
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span> Yes</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Maybe</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"></span> No</span>
       </div>
     </div>`;
 
   if (poll.votes.length === 0) {
-    return headerH2 + `<div class="no-votes">No votes yet — share the link to get responses!</div>`;
+    return header + `
+      <div class="text-center py-10 bg-gray-50 border border-gray-100 rounded-2xl">
+        <i data-lucide="bar-chart-2" class="w-8 h-8 text-gray-300 mx-auto mb-3"></i>
+        <p class="text-sm text-gray-400">No votes yet — share the link to get responses!</p>
+      </div>`;
   }
 
   const voterThs = poll.votes.map(v =>
-    `<th class="voter-col" title="${esc(v.name)}">${esc(v.name.length > 9 ? v.name.slice(0,9)+'…' : v.name)}</th>`
+    `<th class="text-center text-xs font-semibold text-gray-400 px-2 py-2 max-w-16 overflow-hidden text-ellipsis whitespace-nowrap" title="${esc(v.name)}">${esc(v.name.length > 8 ? v.name.slice(0,8)+'…' : v.name)}</th>`
   ).join('');
 
   const rows = poll.slots.map(slot => {
@@ -1315,41 +1110,47 @@ function renderResults(poll, tz) {
       if (r === 'maybe') maybe++;
       const sym = r === 'yes' ? '✓' : r === 'maybe' ? '~' : r === 'no' ? '✗' : '–';
       const cls = r === 'yes' ? 'vdot-yes' : r === 'maybe' ? 'vdot-maybe' : r === 'no' ? 'vdot-no' : 'vdot-none';
-      return `<td class="vcell"><span class="vdot ${cls}" title="${r}">${sym}</span></td>`;
+      return `<td class="text-center px-2 py-3"><span class="vdot ${cls}" title="${r}">${sym}</span></td>`;
     }).join('');
 
-    const scoreLabel = `${yes}✓${maybe > 0 ? ' ' + maybe + '~' : ''}`;
+    const scoreLabel = `<span class="font-bold text-blue-600 text-xs">${yes}✓${maybe > 0 ? ' ' + maybe + '~' : ''}</span>`;
     const action = isConf
-      ? `<span class="confirmed-tag">Confirmed ✓</span>`
-      : `<button class="btn btn-green btn-sm" onclick="confirmSlot('${slot.id}')">Confirm</button>`;
+      ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full whitespace-nowrap">
+           <i data-lucide="check" class="w-3 h-3"></i> Confirmed
+         </span>`
+      : `<button onclick="confirmSlot('${slot.id}')"
+           class="text-xs font-semibold text-white bg-green-500 hover:bg-green-600 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap">
+           Confirm
+         </button>`;
 
     return `
       <tr class="${isConf ? 'confirmed-row' : ''}">
-        <td class="slot-cell">
-          <div class="sdate">${esc(dateStr)}</div>
-          <div class="stime">${esc(timeStr)}</div>
+        <td class="py-3 pr-3 min-w-28">
+          <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
+          <div class="text-xs text-gray-400">${esc(timeStr)}</div>
         </td>
         ${voteCells}
-        <td class="score-cell">${scoreLabel}</td>
-        <td class="action-cell">${action}</td>
+        <td class="px-2 py-3 whitespace-nowrap">${scoreLabel}</td>
+        <td class="pl-2 py-3 whitespace-nowrap">${action}</td>
       </tr>`;
   }).join('');
 
-  return headerH2 + `
-    <div class="results-wrap">
-      <table class="results-table">
+  return header + `
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse text-sm min-w-80">
         <thead>
-          <tr>
-            <th>Date &amp; Time</th>
+          <tr class="border-b-2 border-gray-100">
+            <th class="text-left text-xs font-semibold text-gray-400 py-2 pr-3">Date &amp; Time</th>
             ${voterThs}
-            <th>Score</th>
+            <th class="text-xs font-semibold text-gray-400 px-2 py-2">Score</th>
             <th></th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody class="divide-y divide-gray-50">${rows}</tbody>
       </table>
     </div>
-    <p style="margin-top:10px;font-size:0.78rem;color:var(--gray-400)">
+    <p class="mt-3 text-xs text-gray-400 flex items-center gap-1">
+      <i data-lucide="clock" class="w-3 h-3"></i>
       Times shown in your local timezone (${esc(tz)}). Click Confirm to lock in a time.
     </p>`;
 }
@@ -1366,7 +1167,7 @@ async function confirmSlot(slotId) {
       body: JSON.stringify({ slotId })
     });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed');
-    showToast('Time confirmed! ✅');
+    showToast('Time confirmed!');
     await loadPoll(currentPollId);
   } catch (e) { showToast('Error: ' + e.message); }
 }
@@ -1388,14 +1189,13 @@ async function unconfirmSlot() {
 document.addEventListener('change', e => {
   if (e.target.id === 'vote-tz' && currentPoll) {
     const newTZ = e.target.value;
-    const nameVal = document.getElementById('vote-name')?.value || '';
     currentPoll.slots.forEach(slot => {
       const el = document.getElementById('vs-' + slot.id);
       if (!el) return;
       const { dateStr, timeStr } = formatSlot(slot.datetime, newTZ);
       el.querySelector('.slot-label').innerHTML = `
-        <div class="date">${esc(dateStr)}</div>
-        <div class="time">${esc(timeStr)}</div>`;
+        <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
+        <div class="text-xs text-gray-400">${esc(timeStr)}</div>`;
     });
   }
 });

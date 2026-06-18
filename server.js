@@ -10,7 +10,26 @@ const DB_PATH = path.join(__dirname, 'polls.json');
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'brady';
+if (!process.env.ADMIN_PASSWORD) {
+  console.warn('⚠️  WARNING: ADMIN_PASSWORD env var not set. Using insecure default password.');
+}
+
 const sessions = new Map(); // token → expiry timestamp
+
+// ─── RATE LIMITING ────────────────────────────────────────────────────────────
+
+const loginAttempts = new Map(); // ip → { count, resetAt }
+const LOGIN_LIMIT  = 10;
+const LOGIN_WINDOW = 15 * 60 * 1000; // 15 minutes
+
+function checkLoginRateLimit(ip) {
+  const now    = Date.now();
+  const record = loginAttempts.get(ip) || { count: 0, resetAt: now + LOGIN_WINDOW };
+  if (now > record.resetAt) { record.count = 0; record.resetAt = now + LOGIN_WINDOW; }
+  record.count++;
+  loginAttempts.set(ip, record);
+  return record.count <= LOGIN_LIMIT;
+}
 
 function generateToken() {
   return crypto.randomBytes(16).toString('hex');
@@ -30,7 +49,7 @@ function isAuthenticated(req) {
   return true;
 }
 
-app.use(express.json());
+app.use(express.json({ limit: '16kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── DB HELPERS ──────────────────────────────────────────────────────────────
@@ -56,8 +75,12 @@ function generateId() {
 
 // Login
 app.post('/api/login', (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+  if (!checkLoginRateLimit(ip)) {
+    return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
+  }
   const { password } = req.body;
-  if (password !== ADMIN_PASSWORD) {
+  if (typeof password !== 'string' || password !== ADMIN_PASSWORD) {
     return res.status(401).json({ error: 'Incorrect password.' });
   }
   const token = generateToken();
@@ -96,6 +119,30 @@ app.post('/api/polls', (req, res) => {
   if (!title || !creatorName || !Array.isArray(slots) || slots.length === 0) {
     return res.status(400).json({ error: 'Missing required fields.' });
   }
+  if (typeof title !== 'string' || title.trim().length > 200) {
+    return res.status(400).json({ error: 'Title must be under 200 characters.' });
+  }
+  if (typeof creatorName !== 'string' || creatorName.trim().length > 100) {
+    return res.status(400).json({ error: 'Name must be under 100 characters.' });
+  }
+  if (slots.length > 30) {
+    return res.status(400).json({ error: 'Too many slots (max 30).' });
+  }
+
+  // Validate slot payloads
+  if (pollType === 'schedule') {
+    for (const s of slots) {
+      if (!Number.isFinite(Number(s.datetime))) {
+        return res.status(400).json({ error: 'Invalid slot datetime.' });
+      }
+    }
+  } else {
+    for (const s of slots) {
+      if (typeof s.label !== 'string' || !s.label.trim() || s.label.length > 200) {
+        return res.status(400).json({ error: 'Invalid option label.' });
+      }
+    }
+  }
 
   const db = loadDB();
   const id = generateId();
@@ -108,8 +155,8 @@ app.post('/api/polls', (req, res) => {
     createdAt: new Date().toISOString(),
     confirmedSlot: null,
     slots: pollType === 'question'
-      ? slots.map((s, i) => ({ id: `s${i}`, label: String(s.label || '').trim() }))
-      : slots.map((s, i) => ({ id: `s${i}`, datetime: s.datetime })),
+      ? slots.map((s, i) => ({ id: `s${i}`, label: String(s.label).trim() }))
+      : slots.map((s, i) => ({ id: `s${i}`, datetime: Number(s.datetime) })),
     votes: []
   };
 
@@ -130,20 +177,40 @@ app.get('/api/polls/:id', (req, res) => {
 app.post('/api/polls/:id/vote', (req, res) => {
   const { name, timezone, responses } = req.body;
 
-  if (!name || !timezone || !responses || typeof responses !== 'object') {
+  if (!name || !timezone || !responses || typeof responses !== 'object' || Array.isArray(responses)) {
     return res.status(400).json({ error: 'Missing required fields.' });
+  }
+  if (typeof name !== 'string' || name.trim().length === 0 || name.length > 100) {
+    return res.status(400).json({ error: 'Invalid name.' });
+  }
+  if (typeof timezone !== 'string' || timezone.length > 80) {
+    return res.status(400).json({ error: 'Invalid timezone.' });
   }
 
   const db = loadDB();
   const poll = db[req.params.id];
   if (!poll) return res.status(404).json({ error: 'Poll not found.' });
 
+  // Sanitize responses: only accept valid slot IDs with valid values
+  const validSlotIds   = new Set(poll.slots.map(s => s.id));
+  const validSchedule  = new Set(['yes', 'maybe', 'no']);
+  const sanitized = {};
+  for (const [k, v] of Object.entries(responses)) {
+    if (!validSlotIds.has(k)) continue;
+    if (poll.type === 'schedule') {
+      if (validSchedule.has(v)) sanitized[k] = v;
+    } else {
+      const rank = parseInt(v);
+      if (Number.isInteger(rank) && rank >= 1 && rank <= poll.slots.length) sanitized[k] = String(rank);
+    }
+  }
+
   // Replace existing vote from the same name (case-insensitive)
   poll.votes = poll.votes.filter(v => v.name.toLowerCase() !== name.trim().toLowerCase());
   poll.votes.push({
     name: name.trim(),
-    timezone,
-    responses,
+    timezone: timezone.trim(),
+    responses: sanitized,
     submittedAt: new Date().toISOString()
   });
 
@@ -151,10 +218,12 @@ app.post('/api/polls/:id/vote', (req, res) => {
   res.json({ success: true });
 });
 
-// Confirm a slot as the final time
+// Confirm a slot as the final time (admin only)
 app.post('/api/polls/:id/confirm', (req, res) => {
+  if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized.' });
+
   const { slotId } = req.body;
-  if (!slotId) return res.status(400).json({ error: 'Missing slotId.' });
+  if (!slotId || typeof slotId !== 'string') return res.status(400).json({ error: 'Missing slotId.' });
 
   const db = loadDB();
   const poll = db[req.params.id];
@@ -168,8 +237,10 @@ app.post('/api/polls/:id/confirm', (req, res) => {
   res.json({ success: true });
 });
 
-// Unconfirm a slot
+// Unconfirm a slot (admin only)
 app.post('/api/polls/:id/unconfirm', (req, res) => {
+  if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized.' });
+
   const db = loadDB();
   const poll = db[req.params.id];
   if (!poll) return res.status(404).json({ error: 'Poll not found.' });
