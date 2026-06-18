@@ -187,5 +187,5 @@ app.get('*', (req, res) => {
 // ─── START ───────────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
-  console.log(`Brady's Calendar Tool running at http://localhost:${PORT}`);
+  console.log(`Brady's Little Helper running at http://localhost:${PORT}`);
 });
