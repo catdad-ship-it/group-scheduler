@@ -1,0 +1,30 @@
+{
+  "8ca8ec38": {
+    "id": "8ca8ec38",
+    "title": "Lunch",
+    "creatorName": "Brady",
+    "createdAt": "2026-06-17T15:21:56.384Z",
+    "confirmedSlot": "s0",
+    "slots": [
+      {
+        "id": "s0",
+        "datetime": 1750000000000
+      },
+      {
+        "id": "s1",
+        "datetime": 1750100000000
+      }
+    ],
+    "votes": [
+      {
+        "name": "Alice",
+        "timezone": "America/New_York",
+        "responses": {
+          "s0": "yes",
+          "s1": "maybe"
+        },
+        "submittedAt": "2026-06-17T15:21:56.421Z"
+      }
+    ]
+  }
+}
