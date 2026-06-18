@@ -360,6 +360,76 @@
       border-radius: 10px;
     }
 
+    /* ── POLL TYPE PICKER ───────────────────────────── */
+    .poll-type-picker {
+      display: flex; gap: 12px; margin-top: 28px; justify-content: center;
+    }
+    .poll-type-card {
+      flex: 1; max-width: 220px;
+      border: 2px solid var(--gray-200);
+      border-radius: 14px; padding: 22px 16px;
+      cursor: pointer; text-align: center;
+      transition: border-color 0.15s, background 0.15s;
+      background: #fff;
+    }
+    .poll-type-card:hover { border-color: var(--blue); background: var(--blue-light); }
+    .poll-type-card .icon { font-size: 2rem; margin-bottom: 10px; }
+    .poll-type-card strong { display: block; font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+    .poll-type-card span { font-size: 0.8rem; color: var(--gray-600); }
+
+    /* ── QUESTION OPTIONS (CREATE) ───────────────────── */
+    .option-item  { display: flex; gap: 8px; align-items: center; }
+    .option-label {
+      width: 26px; height: 26px; flex-shrink: 0;
+      background: var(--gray-100); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700; color: var(--gray-600);
+    }
+    .option-item input { flex: 1; }
+
+    /* ── RANKED CHOICE VOTING ────────────────────────── */
+    .rc-options { display: flex; flex-direction: column; gap: 8px; margin: 18px 0; }
+    .rc-option {
+      background: #fff; border: 1px solid var(--gray-200);
+      border-radius: 8px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 12px;
+      cursor: pointer; transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .rc-option:hover { border-color: var(--blue); }
+    .rc-option.ranked { border-color: var(--blue); background: var(--blue-light); }
+    .rc-rank {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      background: var(--gray-100); border: 2px solid var(--gray-200);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 700; color: var(--gray-400);
+      transition: all 0.15s;
+    }
+    .rc-option.ranked .rc-rank {
+      background: var(--blue); border-color: var(--blue); color: #fff;
+    }
+    .rc-option-label { font-size: 0.9rem; font-weight: 500; }
+    .rc-hint { font-size: 0.8rem; color: var(--gray-400); margin-top: -10px; margin-bottom: 10px; }
+
+    /* ── QUESTION RESULTS ────────────────────────────── */
+    .q-results { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .q-result-row { }
+    .q-result-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 4px;
+    }
+    .q-result-label { font-size: 0.9rem; font-weight: 600; }
+    .q-result-score { font-size: 0.8rem; color: var(--gray-600); }
+    .q-bar-track {
+      background: var(--gray-100); border-radius: 4px; height: 8px; overflow: hidden;
+    }
+    .q-bar-fill {
+      height: 100%; background: var(--blue); border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+    .q-bar-fill.winner { background: var(--green); }
+    .q-result-voters { font-size: 0.75rem; color: var(--gray-400); margin-top: 3px; }
+
     /* ── TOAST ───────────────────────────────────────── */
     .toast {
       position: fixed; bottom: 24px; left: 50%;
@@ -404,25 +474,19 @@
 <div id="view-home" class="view active">
   <div class="container">
     <div class="hero">
-      <h1>Find the best time,<br>without the chaos.</h1>
-      <p>Create a scheduling poll, share it with your group, and let everyone vote.</p>
-      <button class="btn btn-primary btn-lg" onclick="showView('create')">Create a Poll</button>
-    </div>
-    <div class="how-it-works">
-      <div class="how-step">
-        <div class="icon">📋</div>
-        <strong>Pick your times</strong>
-        <span>Add the date &amp; time options you want to consider</span>
-      </div>
-      <div class="how-step">
-        <div class="icon">🔗</div>
-        <strong>Share the link</strong>
-        <span>Send it to your group — no account needed to vote</span>
-      </div>
-      <div class="how-step">
-        <div class="icon">✅</div>
-        <strong>Confirm the time</strong>
-        <span>See results and lock in the best option</span>
+      <h1>Group decisions,<br>made easy.</h1>
+      <p>Create a poll, share it with your group, and let everyone vote.</p>
+      <div class="poll-type-picker">
+        <div class="poll-type-card" onclick="startCreate('schedule')">
+          <div class="icon">📅</div>
+          <strong>Find a Time</strong>
+          <span>Pick the best meeting time from a set of options</span>
+        </div>
+        <div class="poll-type-card" onclick="startCreate('question')">
+          <div class="icon">🗳️</div>
+          <strong>Ask a Question</strong>
+          <span>Ranked-choice vote on any options you define</span>
+        </div>
       </div>
     </div>
   </div>
@@ -433,11 +497,11 @@
 ═════════════════════════════════════════════════════ -->
 <div id="view-create" class="view">
   <div class="container">
-    <h1 class="page-title">Create a Poll</h1>
-    <p class="page-sub">Add your details and the time options you want people to vote on.</p>
+    <h1 class="page-title" id="create-title">Create a Poll</h1>
+    <p class="page-sub" id="create-sub"></p>
 
     <div class="form-group">
-      <label for="poll-title">Poll Title</label>
+      <label for="poll-title" id="poll-title-label">Poll Title</label>
       <input type="text" id="poll-title" placeholder="e.g. Team lunch, Project kickoff…" maxlength="120">
     </div>
 
@@ -448,11 +512,21 @@
 
     <hr class="divider">
 
-    <label style="margin-bottom:6px;">Time Options</label>
-    <p style="color:var(--gray-600);font-size:0.85rem;margin-bottom:12px;">Add the slots you want people to vote on. Times are interpreted in your browser's local timezone.</p>
+    <!-- Schedule slots -->
+    <div id="schedule-options-section">
+      <label style="margin-bottom:6px;">Time Options</label>
+      <p style="color:var(--gray-600);font-size:0.85rem;margin-bottom:12px;">Add the slots you want people to vote on. Times are interpreted in your browser's local timezone.</p>
+      <div class="slots-list" id="slots-list"></div>
+      <button class="add-slot-btn" onclick="addSlot()">+ Add a time slot</button>
+    </div>
 
-    <div class="slots-list" id="slots-list"></div>
-    <button class="add-slot-btn" onclick="addSlot()">+ Add a time slot</button>
+    <!-- Question options -->
+    <div id="question-options-section" style="display:none">
+      <label style="margin-bottom:6px;">Options</label>
+      <p style="color:var(--gray-600);font-size:0.85rem;margin-bottom:12px;">Add the choices people will rank.</p>
+      <div class="slots-list" id="options-list"></div>
+      <button class="add-slot-btn" onclick="addOption()">+ Add an option</button>
+    </div>
 
     <div id="create-error" class="error-msg"></div>
 
@@ -543,8 +617,9 @@
 // ────────────────────────────────────────────────────
 let currentPollId   = null;
 let currentPoll     = null;
-let voteResponses   = {};   // slotId → 'yes' | 'maybe' | 'no' | null
+let voteResponses   = {};   // schedule: slotId → 'yes'|'maybe'|'no' | question: slotId → rank (int) | null
 let isAdmin         = false;
+let createPollType  = 'schedule'; // 'schedule' | 'question'
 
 // ────────────────────────────────────────────────────
 // AUTH / NAV STATE
@@ -626,6 +701,7 @@ async function loadDashboard() {
       const isConfirmed = !!poll.confirmedSlot;
       const date = new Date(poll.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const voteCount = poll.votes.length;
+      const typeLabel = poll.type === 'question' ? '🗳️ Question' : '📅 Schedule';
       const badge = isConfirmed
         ? '<span class="poll-card-badge badge-confirmed">Confirmed ✓</span>'
         : '<span class="poll-card-badge badge-open">Open</span>';
@@ -633,7 +709,7 @@ async function loadDashboard() {
         <div class="poll-card" onclick="openPollFromDashboard('${poll.id}')">
           <div>
             <div class="poll-card-title">${esc(poll.title)}</div>
-            <div class="poll-card-meta">Created ${esc(date)} · ${voteCount} response${voteCount !== 1 ? 's' : ''}</div>
+            <div class="poll-card-meta">${typeLabel} · Created ${esc(date)} · ${voteCount} response${voteCount !== 1 ? 's' : ''}</div>
           </div>
           ${badge}
         </div>`;
@@ -679,7 +755,12 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
   window.scrollTo(0, 0);
-  if (name === 'create') initCreateForm();
+}
+
+function startCreate(type) {
+  createPollType = type || 'schedule';
+  initCreateForm();
+  showView('create');
 }
 
 function goHome() {
@@ -736,9 +817,25 @@ function initCreateForm() {
   document.getElementById('poll-title').value   = '';
   document.getElementById('creator-name').value = '';
   document.getElementById('create-error').textContent = '';
-  document.getElementById('slots-list').innerHTML = '';
-  addSlot();
-  addSlot();
+
+  const isQ = createPollType === 'question';
+  document.getElementById('create-title').textContent     = isQ ? 'Ask a Question' : 'Find a Time';
+  document.getElementById('create-sub').textContent       = isQ
+    ? 'Add your question and the options people will rank.'
+    : 'Add your details and the time options you want people to vote on.';
+  document.getElementById('poll-title-label').textContent = isQ ? 'Your Question' : 'Poll Title';
+  document.getElementById('poll-title').placeholder       = isQ ? 'e.g. What movie should we watch?' : 'e.g. Team lunch, Project kickoff…';
+
+  document.getElementById('schedule-options-section').style.display = isQ ? 'none' : '';
+  document.getElementById('question-options-section').style.display = isQ ? '' : 'none';
+
+  if (isQ) {
+    document.getElementById('options-list').innerHTML = '';
+    addOption(); addOption(); addOption();
+  } else {
+    document.getElementById('slots-list').innerHTML = '';
+    addSlot(); addSlot();
+  }
 }
 
 function localDatetimeValue(date) {
@@ -768,21 +865,63 @@ function removeSlot(id) {
   document.getElementById(id)?.remove();
 }
 
+// ── Question option add/remove ────────────────────────
+const OPTION_LETTERS = 'ABCDEFGHIJ';
+
+function addOption() {
+  const list = document.getElementById('options-list');
+  const idx  = list.children.length;
+  const uid  = 'opt_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+  const div  = document.createElement('div');
+  div.className = 'slot-item option-item';
+  div.id = uid;
+  div.innerHTML = `
+    <span class="option-label">${OPTION_LETTERS[idx] || (idx+1)}</span>
+    <input type="text" placeholder="Option ${OPTION_LETTERS[idx] || idx+1}" maxlength="120">
+    <button class="slot-remove" onclick="removeOption('${uid}')" title="Remove">✕</button>
+  `;
+  list.appendChild(div);
+  refreshOptionLabels();
+}
+
+function removeOption(id) {
+  const list = document.getElementById('options-list');
+  if (list.children.length <= 2) { showToast('You need at least two options.'); return; }
+  document.getElementById(id)?.remove();
+  refreshOptionLabels();
+}
+
+function refreshOptionLabels() {
+  const items = document.querySelectorAll('#options-list .option-label');
+  items.forEach((el, i) => { el.textContent = OPTION_LETTERS[i] || (i+1); });
+}
+
 async function createPoll() {
   const title       = document.getElementById('poll-title').value.trim();
   const creatorName = document.getElementById('creator-name').value.trim();
-  const inputs      = document.querySelectorAll('#slots-list input[type="datetime-local"]');
   const errEl       = document.getElementById('create-error');
   errEl.textContent = '';
 
-  if (!title)       { errEl.textContent = 'Please enter a poll title.'; return; }
+  if (!title)       { errEl.textContent = 'Please enter a title.'; return; }
   if (!creatorName) { errEl.textContent = 'Please enter your name.'; return; }
-  if (!inputs.length){ errEl.textContent = 'Please add at least one time slot.'; return; }
 
-  const slots = [];
-  for (const inp of inputs) {
-    if (!inp.value) { errEl.textContent = 'Please fill in all time slots.'; return; }
-    slots.push({ datetime: new Date(inp.value).getTime() });
+  let slots;
+  if (createPollType === 'question') {
+    const inputs = document.querySelectorAll('#options-list input[type="text"]');
+    if (inputs.length < 2) { errEl.textContent = 'Please add at least two options.'; return; }
+    slots = [];
+    for (const inp of inputs) {
+      if (!inp.value.trim()) { errEl.textContent = 'Please fill in all options.'; return; }
+      slots.push({ label: inp.value.trim() });
+    }
+  } else {
+    const inputs = document.querySelectorAll('#slots-list input[type="datetime-local"]');
+    if (!inputs.length) { errEl.textContent = 'Please add at least one time slot.'; return; }
+    slots = [];
+    for (const inp of inputs) {
+      if (!inp.value) { errEl.textContent = 'Please fill in all time slots.'; return; }
+      slots.push({ datetime: new Date(inp.value).getTime() });
+    }
   }
 
   const btn = document.getElementById('create-btn');
@@ -792,7 +931,7 @@ async function createPoll() {
     const res  = await fetch('/api/polls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, creatorName, slots })
+      body: JSON.stringify({ title, creatorName, slots, type: createPollType })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to create poll.');
@@ -845,9 +984,180 @@ async function loadPoll(id) {
 }
 
 // ────────────────────────────────────────────────────
-// POLL PAGE — RENDER
+// POLL PAGE — RENDER (dispatcher)
 // ────────────────────────────────────────────────────
 function renderPoll() {
+  if (currentPoll.type === 'question') { renderQuestionPoll(); return; }
+  renderSchedulePoll();
+}
+
+// ────────────────────────────────────────────────────
+// QUESTION POLL RENDER
+// ────────────────────────────────────────────────────
+function renderQuestionPoll() {
+  const poll = currentPoll;
+  document.getElementById('poll-container').innerHTML = `
+    <div class="poll-header">
+      <h1>${esc(poll.title)}</h1>
+      <p class="poll-meta">Created by <strong>${esc(poll.creatorName)}</strong> · ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}</p>
+    </div>
+    <div class="vote-card" id="q-vote-card">
+      ${renderQuestionVoteForm(poll)}
+    </div>
+    <div id="q-results-section">
+      ${renderQuestionResults(poll)}
+    </div>
+  `;
+}
+
+function renderQuestionVoteForm(poll) {
+  const optionsHTML = poll.slots.map(opt => {
+    const rank = voteResponses[opt.id] || null;
+    return `
+      <div class="rc-option${rank ? ' ranked' : ''}" id="rc-${opt.id}" onclick="toggleRank('${opt.id}')">
+        <div class="rc-rank">${rank || ''}</div>
+        <div class="rc-option-label">${esc(opt.label)}</div>
+      </div>`;
+  }).join('');
+
+  return `
+    <h2>Cast Your Vote</h2>
+    <p style="color:var(--gray-600);font-size:0.875rem;margin-bottom:4px;">Tap options in order of preference — 1st pick, 2nd pick, etc.</p>
+    <p class="rc-hint">Tap a ranked option again to remove it.</p>
+    <div class="form-group">
+      <label for="vote-name">Your Name</label>
+      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60">
+    </div>
+    <div class="rc-options" id="rc-options">${optionsHTML}</div>
+    <div id="vote-error" class="error-msg"></div>
+    <button class="btn btn-primary" id="vote-btn" onclick="submitQuestionVote()">Submit Vote</button>
+  `;
+}
+
+function toggleRank(optId) {
+  const currentRank = voteResponses[optId] || null;
+  if (currentRank) {
+    // Un-rank it; shift higher ranks down
+    const removed = currentRank;
+    voteResponses[optId] = null;
+    currentPoll.slots.forEach(s => {
+      if (voteResponses[s.id] > removed) voteResponses[s.id]--;
+    });
+  } else {
+    // Assign next rank
+    const maxRank = Math.max(0, ...currentPoll.slots.map(s => voteResponses[s.id] || 0));
+    voteResponses[optId] = maxRank + 1;
+  }
+  // Re-render just the options
+  const container = document.getElementById('rc-options');
+  if (!container) return;
+  currentPoll.slots.forEach(opt => {
+    const el = document.getElementById('rc-' + opt.id);
+    if (!el) return;
+    const rank = voteResponses[opt.id] || null;
+    el.className = 'rc-option' + (rank ? ' ranked' : '');
+    el.querySelector('.rc-rank').textContent = rank || '';
+  });
+}
+
+async function submitQuestionVote() {
+  const name  = document.getElementById('vote-name')?.value.trim();
+  const errEl = document.getElementById('vote-error');
+  errEl.textContent = '';
+
+  if (!name) { errEl.textContent = 'Please enter your name.'; return; }
+
+  const hasAnyRank = currentPoll.slots.some(s => voteResponses[s.id]);
+  if (!hasAnyRank) { errEl.textContent = 'Please rank at least one option.'; return; }
+
+  // Build responses: slotId → rank (as string to match existing vote schema)
+  const responses = {};
+  currentPoll.slots.forEach(s => {
+    if (voteResponses[s.id]) responses[s.id] = String(voteResponses[s.id]);
+  });
+
+  const btn = document.getElementById('vote-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+
+  try {
+    const res = await fetch(`/api/polls/${currentPollId}/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, timezone: 'UTC', responses })
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
+    showToast('Vote submitted! 🎉');
+    voteResponses = {};
+    await loadPoll(currentPollId);
+  } catch (e) {
+    errEl.textContent = e.message;
+    btn.disabled = false; btn.textContent = 'Submit Vote';
+  }
+}
+
+function renderQuestionResults(poll) {
+  const n = poll.slots.length;
+
+  // Borda count: rank 1 = n pts, rank 2 = n-1 pts, ..., unranked = 0
+  const scores = {};
+  const firstChoices = {};
+  poll.slots.forEach(s => { scores[s.id] = 0; firstChoices[s.id] = 0; });
+
+  poll.votes.forEach(vote => {
+    poll.slots.forEach(s => {
+      const rank = parseInt(vote.responses[s.id]);
+      if (rank && rank >= 1) {
+        scores[s.id] += Math.max(0, n - rank + 1);
+        if (rank === 1) firstChoices[s.id]++;
+      }
+    });
+  });
+
+  const maxScore = Math.max(1, ...Object.values(scores));
+  const sorted = [...poll.slots].sort((a, b) => scores[b.id] - scores[a.id]);
+  const winnerScore = scores[sorted[0].id];
+
+  if (poll.votes.length === 0) {
+    return `<div class="results-header"><h2>Results</h2></div>
+      <div class="no-votes">No votes yet — share the link to get responses!</div>`;
+  }
+
+  const rows = sorted.map((opt, i) => {
+    const score = scores[opt.id];
+    const pct   = Math.round((score / maxScore) * 100);
+    const isWinner = score === winnerScore && score > 0;
+    const voters1st = firstChoices[opt.id];
+    const voterNames = poll.votes
+      .filter(v => parseInt(v.responses[opt.id]) === 1)
+      .map(v => esc(v.name)).join(', ');
+
+    return `
+      <div class="q-result-row">
+        <div class="q-result-header">
+          <span class="q-result-label">${isWinner && i === 0 ? '🏆 ' : ''}${esc(opt.label)}</span>
+          <span class="q-result-score">${score} pt${score !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="q-bar-track">
+          <div class="q-bar-fill${isWinner && i === 0 ? ' winner' : ''}" style="width:${pct}%"></div>
+        </div>
+        ${voters1st > 0 ? `<div class="q-result-voters">${voters1st} first choice${voters1st !== 1 ? 's' : ''}: ${voterNames}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="results-header"><h2>Results</h2>
+      <span style="font-size:0.75rem;color:var(--gray-400)">Ranked-choice scoring</span>
+    </div>
+    <div class="q-results">${rows}</div>
+    <p style="margin-top:12px;font-size:0.78rem;color:var(--gray-400)">
+      Points: 1st pick = ${n} pts, 2nd = ${n-1} pts, etc.
+    </p>`;
+}
+
+// ────────────────────────────────────────────────────
+// SCHEDULE POLL RENDER (existing, renamed)
+// ────────────────────────────────────────────────────
+function renderSchedulePoll() {
   const poll = currentPoll;
   const tz   = getUserTimezone();
 

@@ -90,7 +90,8 @@ app.get('/api/admin/polls', (req, res) => {
 
 // Create a new poll
 app.post('/api/polls', (req, res) => {
-  const { title, creatorName, slots } = req.body;
+  const { title, creatorName, slots, type } = req.body;
+  const pollType = type === 'question' ? 'question' : 'schedule';
 
   if (!title || !creatorName || !Array.isArray(slots) || slots.length === 0) {
     return res.status(400).json({ error: 'Missing required fields.' });
@@ -101,14 +102,14 @@ app.post('/api/polls', (req, res) => {
 
   const poll = {
     id,
+    type: pollType,
     title: title.trim(),
     creatorName: creatorName.trim(),
     createdAt: new Date().toISOString(),
     confirmedSlot: null,
-    slots: slots.map((s, i) => ({
-      id: `s${i}`,
-      datetime: s.datetime  // stored as UTC milliseconds
-    })),
+    slots: pollType === 'question'
+      ? slots.map((s, i) => ({ id: `s${i}`, label: String(s.label || '').trim() }))
+      : slots.map((s, i) => ({ id: `s${i}`, datetime: s.datetime })),
     votes: []
   };
 
