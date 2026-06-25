@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_PATH = path.join(__dirname, 'polls.json');
+const DB_PATH = path.join(process.env.DATA_DIR || __dirname, 'polls.json');
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
