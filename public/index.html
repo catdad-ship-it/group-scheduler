@@ -76,7 +76,7 @@
     }
   </style>
 </head>
-<body class="bg-white text-gray-900 min-h-screen antialiased" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5;">
+<body class="bg-white text-gray-900 min-h-screen antialiased overflow-x-hidden" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5;">
 
 <!-- ── NAV ──────────────────────────────────────────────── -->
 <nav class="sticky top-0 z-50 bg-white border-b border-gray-100">
@@ -88,15 +88,15 @@
     <div class="flex items-center gap-2">
       <button id="nav-mypolls-btn" onclick="goToDashboard()" style="display:none"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
-        <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> My Polls
+        <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> My Polls</span>
       </button>
       <button id="nav-login-btn" onclick="showView('login')" style="display:none"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
-        <i data-lucide="log-in" class="w-3.5 h-3.5"></i> Log In
+        <i data-lucide="log-in" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> Log In</span>
       </button>
       <button id="nav-logout-btn" onclick="logout()" style="display:none"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
-        <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Log Out
+        <i data-lucide="log-out" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> Log Out</span>
       </button>
     </div>
   </div>
@@ -326,8 +326,8 @@
     <div class="flex items-center justify-between mb-1">
       <h1 class="text-2xl font-bold text-gray-900">My Polls</h1>
       <button onclick="goHome()"
-        class="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-all">
-        <i data-lucide="plus" class="w-4 h-4"></i> New Poll
+        class="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 text-white px-3 py-2 rounded-xl hover:bg-blue-700 transition-all whitespace-nowrap shrink-0">
+        <i data-lucide="plus" class="w-4 h-4"></i><span class="hidden sm:inline"> New Poll</span>
       </button>
     </div>
     <p class="text-sm text-gray-400 mb-6">All polls you've created</p>
