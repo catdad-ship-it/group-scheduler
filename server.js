@@ -113,7 +113,7 @@ app.get('/api/admin/polls', (req, res) => {
 
 // Create a new poll
 app.post('/api/polls', (req, res) => {
-  const { title, creatorName, slots, type } = req.body;
+  const { title, creatorName, slots, type, deadline } = req.body;
   const pollType = type === 'question' ? 'question' : 'schedule';
 
   if (!title || !creatorName || !Array.isArray(slots) || slots.length === 0) {
@@ -144,6 +144,14 @@ app.post('/api/polls', (req, res) => {
     }
   }
 
+  let deadlineMs = null;
+  if (deadline !== undefined && deadline !== null && deadline !== '') {
+    deadlineMs = Number(deadline);
+    if (!Number.isFinite(deadlineMs)) {
+      return res.status(400).json({ error: 'Invalid deadline.' });
+    }
+  }
+
   const db = loadDB();
   const id = generateId();
 
@@ -153,6 +161,7 @@ app.post('/api/polls', (req, res) => {
     title: title.trim(),
     creatorName: creatorName.trim(),
     createdAt: new Date().toISOString(),
+    deadline: deadlineMs,
     confirmedSlot: null,
     slots: pollType === 'question'
       ? slots.map((s, i) => ({ id: `s${i}`, label: String(s.label).trim() }))
@@ -190,6 +199,10 @@ app.post('/api/polls/:id/vote', (req, res) => {
   const db = loadDB();
   const poll = db[req.params.id];
   if (!poll) return res.status(404).json({ error: 'Poll not found.' });
+
+  if (poll.deadline && Date.now() > poll.deadline) {
+    return res.status(403).json({ error: 'This poll is closed — voting has ended.' });
+  }
 
   // Sanitize responses: only accept valid slot IDs with valid values
   const validSlotIds   = new Set(poll.slots.map(s => s.id));
@@ -246,6 +259,30 @@ app.post('/api/polls/:id/unconfirm', (req, res) => {
   if (!poll) return res.status(404).json({ error: 'Poll not found.' });
 
   poll.confirmedSlot = null;
+  saveDB(db);
+  res.json({ success: true });
+});
+
+// Delete a poll (admin only)
+app.delete('/api/polls/:id', (req, res) => {
+  if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized.' });
+  const db = loadDB();
+  if (!db[req.params.id]) return res.status(404).json({ error: 'Poll not found.' });
+  delete db[req.params.id];
+  saveDB(db);
+  res.json({ success: true });
+});
+
+// Delete a specific vote (admin only)
+app.delete('/api/polls/:id/votes/:voterName', (req, res) => {
+  if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized.' });
+  const db = loadDB();
+  const poll = db[req.params.id];
+  if (!poll) return res.status(404).json({ error: 'Poll not found.' });
+  const name = decodeURIComponent(req.params.voterName);
+  const before = poll.votes.length;
+  poll.votes = poll.votes.filter(v => v.name !== name);
+  if (poll.votes.length === before) return res.status(404).json({ error: 'Vote not found.' });
   saveDB(db);
   res.json({ success: true });
 });
