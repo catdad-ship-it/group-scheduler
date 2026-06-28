@@ -68,6 +68,9 @@
     /* ── Lucide icon baseline alignment ──────────── */
     [data-lucide] { display: inline-block; vertical-align: middle; }
 
+    /* ── Prevent iOS zoom on focus (requires font-size ≥16px) */
+    input, select, textarea { font-size: 16px !important; }
+
     /* ── Focus ring ───────────────────────────────── */
     input:focus, select:focus {
       outline: none;
