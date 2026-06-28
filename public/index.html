@@ -231,11 +231,19 @@
     </div>
 
     <hr class="border-gray-100 my-6">
-    <div>
-      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Voting Deadline <span class="font-normal normal-case text-gray-300">(optional)</span></label>
-      <input type="datetime-local" id="poll-deadline"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">
-      <p class="text-xs text-gray-400 mt-1">After this date, the poll locks and no new votes can be submitted.</p>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Voting Deadline <span class="font-normal normal-case text-gray-300">(optional)</span></label>
+        <input type="datetime-local" id="poll-deadline"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">
+        <p class="text-xs text-gray-400 mt-1">After this date, the poll locks and no new votes can be submitted.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Expected Voters <span class="font-normal normal-case text-gray-300">(optional)</span></label>
+        <input type="text" id="poll-expected-voters" placeholder="Alice, Bob, Carol" maxlength="500"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
+        <p class="text-xs text-gray-400 mt-1">Comma-separated names. Shows who still needs to vote on the results page.</p>
+      </div>
     </div>
 
     <p id="create-error" class="text-red-500 text-sm mt-4 min-h-5"></p>
@@ -368,12 +376,13 @@ function renderIcons() {
 // ────────────────────────────────────────────────────
 // STATE
 // ────────────────────────────────────────────────────
-let currentPollId    = null;
-let currentPoll      = null;
-let voteResponses    = {};
-let isAdmin          = false;
-let createPollType   = 'schedule';
-let prefillVoterName = null;
+let currentPollId     = null;
+let currentPoll       = null;
+let voteResponses     = {};
+let isAdmin           = false;
+let createPollType    = 'schedule';
+let prefillVoterName  = null;
+let resultsSortByScore = true;
 
 // ────────────────────────────────────────────────────
 // AUTH / NAV STATE
@@ -484,6 +493,10 @@ async function loadDashboard() {
           </div>
           <div class="flex items-center gap-2 shrink-0">
             ${badge}
+            <button onclick="clonePoll(event,'${poll.id}')" title="Clone poll"
+              class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-blue-400 hover:bg-blue-50 rounded-lg transition-all">
+              <i data-lucide="copy" class="w-4 h-4"></i>
+            </button>
             <button onclick="deletePoll(event,'${poll.id}')" title="Delete poll"
               class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all">
               <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -596,6 +609,7 @@ function initCreateForm() {
   document.getElementById('poll-title').value   = '';
   document.getElementById('creator-name').value = '';
   document.getElementById('poll-deadline').value = '';
+  document.getElementById('poll-expected-voters').value = '';
   document.getElementById('create-error').textContent = '';
 
   const isQ = createPollType === 'question';
@@ -623,17 +637,22 @@ function localDatetimeValue(date) {
   return `${date.getFullYear()}-${p(date.getMonth()+1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
 }
 
-function addSlot() {
-  const list  = document.getElementById('slots-list');
-  const uid   = 'sl_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
-  const dflt  = new Date(); dflt.setDate(dflt.getDate() + 1); dflt.setHours(12,0,0,0);
-  const minVal = localDatetimeValue(new Date());
+function addSlot(datetimeMs) {
+  const list = document.getElementById('slots-list');
+  const uid  = 'sl_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+  let dflt;
+  if (datetimeMs) {
+    dflt = new Date(datetimeMs);
+  } else {
+    dflt = new Date(); dflt.setDate(dflt.getDate() + 1); dflt.setHours(12,0,0,0);
+  }
+  const minAttr = datetimeMs ? '' : `min="${localDatetimeValue(new Date())}"`;
 
   const div = document.createElement('div');
   div.className = 'flex gap-2 items-center';
   div.id = uid;
   div.innerHTML = `
-    <input type="datetime-local" value="${localDatetimeValue(dflt)}" min="${minVal}"
+    <input type="datetime-local" value="${localDatetimeValue(dflt)}" ${minAttr}
       class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">
     <button onclick="removeSlot('${uid}')" title="Remove"
       class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
@@ -715,6 +734,9 @@ async function createPoll() {
   const deadlineInput = document.getElementById('poll-deadline').value;
   const deadline = deadlineInput ? new Date(deadlineInput).getTime() : null;
 
+  const evInput = document.getElementById('poll-expected-voters')?.value.trim();
+  const expectedVoters = evInput ? evInput.split(',').map(n => n.trim()).filter(Boolean) : [];
+
   const btn = document.getElementById('create-btn');
   btn.disabled = true; btn.textContent = 'Creating…';
 
@@ -722,7 +744,7 @@ async function createPoll() {
     const res  = await fetch('/api/polls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, creatorName, slots, type: createPollType, deadline })
+      body: JSON.stringify({ title, creatorName, slots, type: createPollType, deadline, expectedVoters })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to create poll.');
@@ -798,6 +820,158 @@ function renderPoll() {
 }
 
 // ────────────────────────────────────────────────────
+// POLL HEADER HELPER
+// ────────────────────────────────────────────────────
+function renderPollHeader(poll, deadlineLine) {
+  const editBtn = isAdmin
+    ? `<button onclick="startEditTitle()" title="Edit title"
+        class="p-1.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all shrink-0">
+        <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+       </button>`
+    : '';
+  return `
+    <div class="mb-6">
+      <div id="poll-title-display">
+        <div class="flex items-start gap-1.5">
+          <h1 class="text-2xl font-bold text-gray-900 flex-1 leading-tight">${esc(poll.title)}</h1>
+          ${editBtn}
+          <button onclick="sharePoll()" title="Share poll"
+            class="p-1.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all shrink-0">
+            <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-gray-400 mt-1">
+        <i data-lucide="user" class="w-3.5 h-3.5"></i>
+        Created by <strong class="text-gray-600">${esc(poll.creatorName)}</strong>
+        <span class="text-gray-200">·</span>
+        <i data-lucide="users" class="w-3.5 h-3.5"></i>
+        ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}
+      </div>
+      ${deadlineLine}
+    </div>`;
+}
+
+// ────────────────────────────────────────────────────
+// WHO HASN'T VOTED
+// ────────────────────────────────────────────────────
+function renderWhoHasntVoted(poll) {
+  if (!poll.expectedVoters || poll.expectedVoters.length === 0) return '';
+  const votedNames = new Set(poll.votes.map(v => v.name.toLowerCase()));
+  const missing = poll.expectedVoters.filter(n => !votedNames.has(n.toLowerCase()));
+  if (missing.length === 0) {
+    return `
+      <div class="flex items-center gap-2 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 mt-4">
+        <i data-lucide="check-circle" class="w-4 h-4 text-green-500 shrink-0"></i>
+        <span class="text-sm text-green-700 font-medium">Everyone has voted!</span>
+      </div>`;
+  }
+  return `
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5 mt-4">
+      <div class="flex items-center gap-2 mb-2">
+        <i data-lucide="clock" class="w-4 h-4 text-amber-500 shrink-0"></i>
+        <span class="text-sm font-semibold text-amber-800">Waiting on (${missing.length})</span>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        ${missing.map(n => `<span class="text-xs bg-white border border-amber-200 text-amber-700 px-2.5 py-1 rounded-full">${esc(n)}</span>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ────────────────────────────────────────────────────
+// MANAGE RESPONSES (admin, all screen sizes)
+// ────────────────────────────────────────────────────
+function renderManageResponses(poll) {
+  if (!isAdmin || poll.votes.length === 0) return '';
+  const rows = poll.votes.map(v => `
+    <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+      <span class="text-sm text-gray-700">${esc(v.name)}</span>
+      <button onclick="deleteVote('${esc(v.name)}')" title="Remove vote"
+        class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-all">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i> Remove
+      </button>
+    </div>`).join('');
+  return `
+    <details class="mt-4 bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+      <summary class="flex items-center gap-2 px-4 py-3 cursor-pointer text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-all select-none" style="list-style:none">
+        <i data-lucide="settings" class="w-4 h-4 text-gray-400"></i>
+        Manage Responses (${poll.votes.length})
+        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 ml-auto"></i>
+      </summary>
+      <div class="px-4 pb-3">${rows}</div>
+    </details>`;
+}
+
+// ────────────────────────────────────────────────────
+// SHARE POLL
+// ────────────────────────────────────────────────────
+function sharePoll() {
+  const url = `${location.origin}/?poll=${currentPollId}`;
+  if (navigator.share) {
+    navigator.share({ title: currentPoll?.title || "Brady's Little Helper", url }).catch(() => {});
+  } else {
+    navigator.clipboard?.writeText(url)
+      .then(() => showToast('Link copied!'))
+      .catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('Link copied!');
+      });
+  }
+}
+
+// ────────────────────────────────────────────────────
+// INLINE TITLE EDIT
+// ────────────────────────────────────────────────────
+function startEditTitle() {
+  const el = document.getElementById('poll-title-display');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="flex items-center gap-2">
+      <input type="text" id="edit-title-input" value="${esc(currentPoll.title)}" maxlength="200"
+        class="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-lg font-bold text-gray-900 bg-white">
+      <button onclick="saveTitle()" class="text-xs text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg transition-all whitespace-nowrap">Save</button>
+      <button onclick="renderPoll()" class="text-xs text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 px-3 py-2 rounded-lg transition-all">Cancel</button>
+    </div>`;
+  document.getElementById('edit-title-input')?.focus();
+}
+
+async function saveTitle() {
+  const newTitle = document.getElementById('edit-title-input')?.value.trim();
+  if (!newTitle) { showToast('Title cannot be empty.'); return; }
+  try {
+    const res = await fetch(`/api/polls/${currentPollId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: newTitle })
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    currentPoll.title = newTitle;
+    showToast('Title updated!');
+    renderPoll();
+  } catch (err) { showToast('Error: ' + err.message); }
+}
+
+// ────────────────────────────────────────────────────
+// SORT TOGGLE
+// ────────────────────────────────────────────────────
+function toggleResultsSort() {
+  resultsSortByScore = !resultsSortByScore;
+  if (currentPoll?.type === 'question') {
+    const sec = document.getElementById('q-results-section');
+    if (sec) { sec.innerHTML = renderQuestionResults(currentPoll); renderIcons(); }
+  } else {
+    const tz  = getUserTimezone();
+    const sec = document.getElementById('results-section');
+    if (sec) { sec.innerHTML = renderResults(currentPoll, tz); renderIcons(); }
+  }
+}
+
+// ────────────────────────────────────────────────────
 // QUESTION POLL RENDER
 // ────────────────────────────────────────────────────
 function renderQuestionPoll() {
@@ -810,23 +984,15 @@ function renderQuestionPoll() {
     : '';
 
   document.getElementById('poll-container').innerHTML = `
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 mb-1">${esc(poll.title)}</h1>
-      <div class="flex items-center gap-2 text-sm text-gray-400">
-        <i data-lucide="user" class="w-3.5 h-3.5"></i>
-        Created by <strong class="text-gray-600">${esc(poll.creatorName)}</strong>
-        <span class="text-gray-200">·</span>
-        <i data-lucide="users" class="w-3.5 h-3.5"></i>
-        ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}
-      </div>
-      ${qDeadlineLine}
-    </div>
+    ${renderPollHeader(poll, qDeadlineLine)}
     <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6" id="q-vote-card">
       ${renderQuestionVoteForm(poll)}
     </div>
     <div id="q-results-section">
       ${renderQuestionResults(poll)}
-    </div>`;
+    </div>
+    ${renderWhoHasntVoted(poll)}
+    ${renderManageResponses(poll)}`;
   renderIcons();
   if (prefillVoterName) {
     const el = document.getElementById('vote-name');
@@ -947,6 +1113,12 @@ function renderQuestionResults(poll) {
   const sorted = [...poll.slots].sort((a, b) => scores[b.id] - scores[a.id]);
   const winnerScore = scores[sorted[0].id];
 
+  const qSortToggle = poll.votes.length > 1
+    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-500 transition-colors">
+        <i data-lucide="arrow-up-down" class="w-3 h-3"></i> ${resultsSortByScore ? 'Original order' : 'Best first'}
+       </button>`
+    : '';
+
   if (poll.votes.length === 0) {
     return `
       <div class="flex items-center justify-between mb-4">
@@ -958,10 +1130,11 @@ function renderQuestionResults(poll) {
       </div>`;
   }
 
-  const rows = sorted.map((opt, i) => {
+  const displayOrder = resultsSortByScore ? sorted : poll.slots;
+  const rows = displayOrder.map((opt, i) => {
     const score = scores[opt.id];
     const pct   = Math.round((score / maxScore) * 100);
-    const isWinner = score === winnerScore && score > 0;
+    const isWinner = score === winnerScore && score > 0 && opt.id === sorted[0].id;
     const voters1st = firstChoices[opt.id];
     const voterNames = poll.votes
       .filter(v => parseInt(v.responses[opt.id]) === 1)
@@ -970,11 +1143,11 @@ function renderQuestionResults(poll) {
     return `
       <div>
         <div class="flex justify-between items-baseline mb-1.5">
-          <span class="text-sm font-semibold text-gray-800">${isWinner && i === 0 ? '<span class="text-amber-500 mr-1">🏆</span>' : ''}${esc(opt.label)}</span>
+          <span class="text-sm font-semibold text-gray-800">${isWinner ? '<span class="text-amber-500 mr-1">🏆</span>' : ''}${esc(opt.label)}</span>
           <span class="text-xs text-gray-400">${score} pt${score !== 1 ? 's' : ''}</span>
         </div>
         <div class="bg-gray-100 rounded-full h-2 overflow-hidden mb-1">
-          <div class="q-bar-fill h-full rounded-full ${isWinner && i === 0 ? 'bg-green-500' : 'bg-blue-500'}" style="width:${pct}%"></div>
+          <div class="q-bar-fill h-full rounded-full ${isWinner ? 'bg-green-500' : 'bg-blue-500'}" style="width:${pct}%"></div>
         </div>
         ${voters1st > 0 ? `<p class="text-xs text-gray-400">${voters1st} first choice${voters1st !== 1 ? 's' : ''}: ${voterNames}</p>` : ''}
       </div>`;
@@ -983,7 +1156,10 @@ function renderQuestionResults(poll) {
   return `
     <div class="flex items-center justify-between mb-4">
       <h2 class="font-bold text-gray-900">Results</h2>
-      <span class="text-xs text-gray-400">Ranked-choice scoring</span>
+      <div class="flex items-center gap-3">
+        ${qSortToggle}
+        <span class="text-xs text-gray-400">Ranked-choice</span>
+      </div>
     </div>
     <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 space-y-4">
       ${rows}
@@ -1036,24 +1212,16 @@ function renderSchedulePoll() {
     : '';
 
   document.getElementById('poll-container').innerHTML = `
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 mb-1">${esc(poll.title)}</h1>
-      <div class="flex items-center gap-2 text-sm text-gray-400">
-        <i data-lucide="user" class="w-3.5 h-3.5"></i>
-        Created by <strong class="text-gray-600">${esc(poll.creatorName)}</strong>
-        <span class="text-gray-200">·</span>
-        <i data-lucide="users" class="w-3.5 h-3.5"></i>
-        ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}
-      </div>
-      ${deadlineLine}
-    </div>
+    ${renderPollHeader(poll, deadlineLine)}
     ${banner}
     <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6" id="vote-card">
       ${renderVoteForm(poll, tz)}
     </div>
     <div id="results-section">
       ${renderResults(poll, tz)}
-    </div>`;
+    </div>
+    ${renderWhoHasntVoted(poll)}
+    ${renderManageResponses(poll)}`;
   renderIcons();
   if (prefillVoterName) {
     const el = document.getElementById('vote-name');
@@ -1170,10 +1338,16 @@ async function submitVote() {
 // RESULTS TABLE
 // ────────────────────────────────────────────────────
 function renderResults(poll, tz) {
+  const sortToggle = poll.votes.length > 1
+    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-500 transition-colors">
+        <i data-lucide="arrow-up-down" class="w-3 h-3"></i> ${resultsSortByScore ? 'Original order' : 'Best first'}
+       </button>`
+    : '';
   const header = `
     <div class="flex items-center justify-between mb-4">
       <h2 class="font-bold text-gray-900">Results</h2>
       <div class="flex items-center gap-3 text-xs text-gray-400">
+        ${sortToggle}
         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span> Yes</span>
         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Maybe</span>
         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"></span> No</span>
@@ -1191,11 +1365,28 @@ function renderResults(poll, tz) {
   const voterThs = poll.votes.map(v =>
     `<th class="hidden sm:table-cell text-center text-xs font-semibold text-gray-400 px-2 py-2 max-w-16 whitespace-nowrap" title="${esc(v.name)}">
       ${esc(v.name.length > 8 ? v.name.slice(0,8)+'…' : v.name)}
-      ${isAdmin ? `<button onclick="deleteVote('${esc(v.name)}')" title="Remove vote" class="block mx-auto mt-0.5 text-gray-300 hover:text-red-400 transition-colors"><i data-lucide="x" class="w-3 h-3"></i></button>` : ''}
     </th>`
   ).join('');
 
-  const rows = poll.slots.map(slot => {
+  // Compute scores for sorting
+  const slotScores = {};
+  poll.slots.forEach(s => { slotScores[s.id] = { yes: 0, maybe: 0 }; });
+  poll.votes.forEach(vote => {
+    poll.slots.forEach(s => {
+      const r = vote.responses[s.id] || 'none';
+      if (r === 'yes')   slotScores[s.id].yes++;
+      if (r === 'maybe') slotScores[s.id].maybe++;
+    });
+  });
+
+  const displaySlots = resultsSortByScore
+    ? [...poll.slots].sort((a, b) => {
+        const sa = slotScores[a.id], sb = slotScores[b.id];
+        return (sb.yes * 2 + sb.maybe) - (sa.yes * 2 + sa.maybe);
+      })
+    : poll.slots;
+
+  const rows = displaySlots.map(slot => {
     const { dateStr, timeStr } = formatSlot(slot.datetime, tz);
     const isConf = poll.confirmedSlot === slot.id;
 
@@ -1332,6 +1523,46 @@ async function deletePoll(e, pollId) {
     showToast('Poll deleted.');
     loadDashboard();
   } catch (err) { showToast('Error: ' + err.message); }
+}
+
+async function clonePoll(e, pollId) {
+  e.stopPropagation();
+  try {
+    const res  = await fetch(`/api/polls/${pollId}`);
+    const poll = await res.json();
+    createPollType = poll.type;
+    initCreateForm();
+
+    document.getElementById('poll-title').value    = poll.title + ' (copy)';
+    document.getElementById('creator-name').value  = poll.creatorName;
+
+    if (poll.type === 'schedule') {
+      document.getElementById('slots-list').innerHTML = '';
+      poll.slots.forEach(s => addSlot(s.datetime));
+    } else {
+      document.getElementById('options-list').innerHTML = '';
+      poll.slots.forEach((s, idx) => {
+        const list = document.getElementById('options-list');
+        const uid  = 'opt_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+        const div  = document.createElement('div');
+        div.className = 'flex gap-2 items-center';
+        div.id = uid;
+        div.innerHTML = `
+          <span class="w-7 h-7 shrink-0 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 option-label">${OPTION_LETTERS[idx] || (idx+1)}</span>
+          <input type="text" maxlength="120" value="${esc(s.label)}"
+            class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
+          <button onclick="removeOption('${uid}')" title="Remove"
+            class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>`;
+        list.appendChild(div);
+      });
+      refreshOptionLabels();
+      renderIcons();
+    }
+
+    showView('create');
+  } catch (err) { showToast('Error loading poll: ' + err.message); }
 }
 
 async function deleteVote(name) {

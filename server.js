@@ -113,7 +113,7 @@ app.get('/api/admin/polls', (req, res) => {
 
 // Create a new poll
 app.post('/api/polls', (req, res) => {
-  const { title, creatorName, slots, type, deadline } = req.body;
+  const { title, creatorName, slots, type, deadline, expectedVoters } = req.body;
   const pollType = type === 'question' ? 'question' : 'schedule';
 
   if (!title || !creatorName || !Array.isArray(slots) || slots.length === 0) {
@@ -152,6 +152,19 @@ app.post('/api/polls', (req, res) => {
     }
   }
 
+  let expectedVotersArr = [];
+  if (expectedVoters !== undefined) {
+    if (!Array.isArray(expectedVoters)) {
+      return res.status(400).json({ error: 'expectedVoters must be an array.' });
+    }
+    if (expectedVoters.length > 50) {
+      return res.status(400).json({ error: 'Too many expected voters (max 50).' });
+    }
+    expectedVotersArr = expectedVoters
+      .filter(n => typeof n === 'string' && n.trim())
+      .map(n => n.trim().slice(0, 100));
+  }
+
   const db = loadDB();
   const id = generateId();
 
@@ -162,6 +175,7 @@ app.post('/api/polls', (req, res) => {
     creatorName: creatorName.trim(),
     createdAt: new Date().toISOString(),
     deadline: deadlineMs,
+    expectedVoters: expectedVotersArr,
     confirmedSlot: null,
     slots: pollType === 'question'
       ? slots.map((s, i) => ({ id: `s${i}`, label: String(s.label).trim() }))
@@ -259,6 +273,23 @@ app.post('/api/polls/:id/unconfirm', (req, res) => {
   if (!poll) return res.status(404).json({ error: 'Poll not found.' });
 
   poll.confirmedSlot = null;
+  saveDB(db);
+  res.json({ success: true });
+});
+
+// Update poll title (admin only)
+app.patch('/api/polls/:id', (req, res) => {
+  if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized.' });
+  const db = loadDB();
+  const poll = db[req.params.id];
+  if (!poll) return res.status(404).json({ error: 'Poll not found.' });
+  const { title } = req.body;
+  if (title !== undefined) {
+    if (typeof title !== 'string' || !title.trim() || title.length > 200) {
+      return res.status(400).json({ error: 'Invalid title.' });
+    }
+    poll.title = title.trim();
+  }
   saveDB(db);
   res.json({ success: true });
 });
