@@ -72,11 +72,22 @@
     input, select, textarea { font-size: 16px !important; }
 
     /* ── Focus ring ───────────────────────────────── */
-    input:focus, select:focus {
+    input:focus, select:focus, button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
       outline: none;
       border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.35);
     }
+
+    /* ── Availability grid ────────────────────────── */
+    .avail-cell { transition: background 0.08s; touch-action: none; }
+    .avail-cell.sel { background: #22c55e !important; border-color: #16a34a !important; }
+    .heat-cell { transition: background 0.15s; }
+
+    /* ── RSVP big buttons ─────────────────────────── */
+    .rsvp-btn { transition: all 0.12s; }
+    .rsvp-btn.sel-yes   { background: #22c55e !important; color: #fff !important; border-color: #22c55e !important; }
+    .rsvp-btn.sel-maybe { background: #f59e0b !important; color: #fff !important; border-color: #f59e0b !important; }
+    .rsvp-btn.sel-no    { background: #ef4444 !important; color: #fff !important; border-color: #ef4444 !important; }
   </style>
 </head>
 <body class="bg-white text-gray-900 min-h-screen antialiased overflow-x-hidden" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5;">
@@ -89,15 +100,15 @@
       Brady's Little Helper
     </button>
     <div class="flex items-center gap-2">
-      <button id="nav-mypolls-btn" onclick="goToDashboard()" style="display:none"
+      <button id="nav-mypolls-btn" onclick="goToDashboard()" style="display:none" aria-label="My Polls"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
         <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> My Polls</span>
       </button>
-      <button id="nav-login-btn" onclick="showView('login')" style="display:none"
+      <button id="nav-login-btn" onclick="showView('login')" style="display:none" aria-label="Log in"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
         <i data-lucide="log-in" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> Log In</span>
       </button>
-      <button id="nav-logout-btn" onclick="logout()" style="display:none"
+      <button id="nav-logout-btn" onclick="logout()" style="display:none" aria-label="Log out"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
         <i data-lucide="log-out" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> Log Out</span>
       </button>
@@ -107,6 +118,25 @@
 
 <!-- ── TOAST ─────────────────────────────────────────────── -->
 <div id="toast" class="toast bg-gray-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-xl whitespace-nowrap"></div>
+
+<!-- ── CONFIRM DIALOG ────────────────────────────────────── -->
+<div id="confirm-overlay" class="fixed inset-0 z-[1100] hidden items-center justify-center bg-gray-900/40 px-5" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+  <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+    <div class="flex items-start gap-3 mb-5">
+      <div id="confirm-icon" class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-red-50 text-red-500">
+        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+      </div>
+      <div class="min-w-0">
+        <h2 id="confirm-title" class="text-base font-bold text-gray-900 mb-1">Are you sure?</h2>
+        <p id="confirm-message" class="text-sm text-gray-500 leading-relaxed"></p>
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button id="confirm-cancel" class="flex-1 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all">Cancel</button>
+      <button id="confirm-ok" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-all">Confirm</button>
+    </div>
+  </div>
+</div>
 
 <!-- ════════════════════════════════════════════════════
      HOME VIEW
@@ -138,6 +168,15 @@
         <div class="text-xs text-gray-500 leading-relaxed">Pick the best meeting time from a set of options</div>
       </button>
 
+      <button onclick="startCreate('availability')"
+        class="group border-2 border-gray-100 hover:border-indigo-300 bg-white hover:bg-indigo-50 rounded-2xl p-5 text-left transition-all duration-150">
+        <div class="w-10 h-10 bg-indigo-100 group-hover:bg-indigo-200 rounded-xl flex items-center justify-center mb-4 transition-colors">
+          <i data-lucide="calendar-range" class="w-5 h-5 text-indigo-600"></i>
+        </div>
+        <div class="font-semibold text-gray-900 mb-1 text-sm">Availability Grid</div>
+        <div class="text-xs text-gray-500 leading-relaxed">Everyone paints when they're free — see the overlap</div>
+      </button>
+
       <button onclick="startCreate('question')"
         class="group border-2 border-gray-100 hover:border-purple-300 bg-white hover:bg-purple-50 rounded-2xl p-5 text-left transition-all duration-150">
         <div class="w-10 h-10 bg-purple-100 group-hover:bg-purple-200 rounded-xl flex items-center justify-center mb-4 transition-colors">
@@ -146,32 +185,41 @@
         <div class="font-semibold text-gray-900 mb-1 text-sm">Ask a Question</div>
         <div class="text-xs text-gray-500 leading-relaxed">Ranked-choice vote on any options you define</div>
       </button>
+
+      <button onclick="startCreate('rsvp')"
+        class="group border-2 border-gray-100 hover:border-teal-300 bg-white hover:bg-teal-50 rounded-2xl p-5 text-left transition-all duration-150">
+        <div class="w-10 h-10 bg-teal-100 group-hover:bg-teal-200 rounded-xl flex items-center justify-center mb-4 transition-colors">
+          <i data-lucide="user-check" class="w-5 h-5 text-teal-600"></i>
+        </div>
+        <div class="font-semibold text-gray-900 mb-1 text-sm">Quick RSVP</div>
+        <div class="text-xs text-gray-500 leading-relaxed">One question, a live headcount — are you in?</div>
+      </button>
     </div>
 
     <!-- How it works -->
     <div>
-      <p class="text-xs font-semibold text-gray-300 uppercase tracking-widest text-center mb-6">How it works</p>
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-6">How it works</p>
       <div class="grid grid-cols-3 gap-4">
         <div class="text-center">
           <div class="w-9 h-9 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-            <i data-lucide="plus-circle" class="w-4 h-4 text-gray-400"></i>
+            <i data-lucide="plus-circle" class="w-4 h-4 text-gray-500"></i>
           </div>
           <div class="text-xs font-semibold text-gray-700 mb-0.5">Create</div>
-          <div class="text-xs text-gray-400">Add options or time slots</div>
+          <div class="text-xs text-gray-500">Add options or time slots</div>
         </div>
         <div class="text-center">
           <div class="w-9 h-9 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-            <i data-lucide="share-2" class="w-4 h-4 text-gray-400"></i>
+            <i data-lucide="share-2" class="w-4 h-4 text-gray-500"></i>
           </div>
           <div class="text-xs font-semibold text-gray-700 mb-0.5">Share</div>
-          <div class="text-xs text-gray-400">Send the link to your group</div>
+          <div class="text-xs text-gray-500">Send the link to your group</div>
         </div>
         <div class="text-center">
           <div class="w-9 h-9 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-            <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+            <i data-lucide="check-circle" class="w-4 h-4 text-gray-500"></i>
           </div>
           <div class="text-xs font-semibold text-gray-700 mb-0.5">Decide</div>
-          <div class="text-xs text-gray-400">See results and confirm</div>
+          <div class="text-xs text-gray-500">See results and confirm</div>
         </div>
       </div>
     </div>
@@ -189,16 +237,16 @@
     <div class="space-y-4 mb-6">
       <div>
         <label for="poll-title" id="poll-title-label"
-          class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Poll Title</label>
+          class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Poll Title</label>
         <input type="text" id="poll-title" maxlength="120"
           placeholder="e.g. Team lunch, Project kickoff…"
-          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
       </div>
       <div>
         <label for="creator-name"
-          class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Your Name</label>
+          class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
         <input type="text" id="creator-name" maxlength="60" placeholder="Your name"
-          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
       </div>
     </div>
 
@@ -207,12 +255,12 @@
     <!-- Schedule slots -->
     <div id="schedule-options-section">
       <div class="mb-3">
-        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Time Options</label>
-        <p class="text-xs text-gray-400 mt-0.5">Times use your browser's local timezone</p>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Time Options</label>
+        <p class="text-xs text-gray-500 mt-0.5">Times use your browser's local timezone</p>
       </div>
       <div class="space-y-2" id="slots-list"></div>
       <button onclick="addSlot()"
-        class="mt-2 w-full py-2.5 border border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-1.5">
+        class="mt-2 w-full py-2.5 border border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-1.5">
         <i data-lucide="plus" class="w-4 h-4"></i> Add a time slot
       </button>
     </div>
@@ -220,29 +268,68 @@
     <!-- Question options -->
     <div id="question-options-section" style="display:none">
       <div class="mb-3">
-        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Options</label>
-        <p class="text-xs text-gray-400 mt-0.5">Add the choices people will rank</p>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Options</label>
+        <p class="text-xs text-gray-500 mt-0.5">Add the choices people will rank</p>
       </div>
       <div class="space-y-2" id="options-list"></div>
       <button onclick="addOption()"
-        class="mt-2 w-full py-2.5 border border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-1.5">
+        class="mt-2 w-full py-2.5 border border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-1.5">
         <i data-lucide="plus" class="w-4 h-4"></i> Add an option
       </button>
+    </div>
+
+    <!-- RSVP: no options needed -->
+    <div id="rsvp-options-section" style="display:none">
+      <label for="rsvp-details" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Details <span class="font-normal normal-case text-gray-400">(optional)</span></label>
+      <input type="text" id="rsvp-details" maxlength="200" placeholder="e.g. Friday 6pm at The Anchor"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+      <p class="text-xs text-gray-500 mt-1">Everyone replies Yes, Maybe, or No — you get a live headcount.</p>
+    </div>
+
+    <!-- Availability grid setup -->
+    <div id="availability-options-section" style="display:none">
+      <div class="mb-3">
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Dates</label>
+        <p class="text-xs text-gray-500 mt-0.5">Add the days people can choose from</p>
+      </div>
+      <div class="space-y-2" id="avail-dates-list"></div>
+      <button onclick="addAvailDate()"
+        class="mt-2 w-full py-2.5 border border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50 transition-all flex items-center justify-center gap-1.5">
+        <i data-lucide="plus" class="w-4 h-4"></i> Add a date
+      </button>
+      <div class="grid grid-cols-3 gap-3 mt-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">From</label>
+          <select id="avail-start" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 bg-white"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">To</label>
+          <select id="avail-end" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 bg-white"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Every</label>
+          <select id="avail-interval" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 bg-white">
+            <option value="30">30 min</option>
+            <option value="60" selected>1 hour</option>
+          </select>
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">Participants drag across the grid to mark when they're free.</p>
     </div>
 
     <hr class="border-gray-100 my-6">
     <div class="space-y-4">
       <div>
-        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Voting Deadline <span class="font-normal normal-case text-gray-300">(optional)</span></label>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Voting Deadline <span class="font-normal normal-case text-gray-400">(optional)</span></label>
         <input type="datetime-local" id="poll-deadline"
           class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">
-        <p class="text-xs text-gray-400 mt-1">After this date, the poll locks and no new votes can be submitted.</p>
+        <p class="text-xs text-gray-500 mt-1">After this date, the poll locks and no new votes can be submitted.</p>
       </div>
       <div>
-        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Expected Voters <span class="font-normal normal-case text-gray-300">(optional)</span></label>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Expected Voters <span class="font-normal normal-case text-gray-400">(optional)</span></label>
         <input type="text" id="poll-expected-voters" placeholder="Alice, Bob, Carol" maxlength="500"
-          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
-        <p class="text-xs text-gray-400 mt-1">Comma-separated names. Shows who still needs to vote on the results page.</p>
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+        <p class="text-xs text-gray-500 mt-1">Comma-separated names. Shows who still needs to vote on the results page.</p>
       </div>
     </div>
 
@@ -284,8 +371,8 @@
       </button>
     </div>
 
-    <p class="text-xs text-gray-400 mb-4 flex items-start gap-1.5">
-      <i data-lucide="info" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-300"></i>
+    <p class="text-xs text-gray-500 mb-4 flex items-start gap-1.5">
+      <i data-lucide="info" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400"></i>
       Confirm the final time from the results page — just open your link anytime.
     </p>
 
@@ -293,7 +380,7 @@
       <img id="qr-code" src="" alt="QR Code" class="w-20 h-20 rounded-lg shrink-0">
       <div>
         <div class="text-sm font-semibold text-gray-700 mb-0.5">QR Code</div>
-        <div class="text-xs text-gray-400">Scan to open the poll — handy for sharing in meetings or on screen.</div>
+        <div class="text-xs text-gray-500">Scan to open the poll — handy for sharing in meetings or on screen.</div>
       </div>
     </div>
 
@@ -313,7 +400,17 @@
 ═════════════════════════════════════════════════════ -->
 <div id="view-poll" class="view">
   <div class="max-w-2xl mx-auto px-5 pt-6 pb-24" id="poll-container">
-    <div class="text-center py-20 text-gray-400 text-sm">Loading poll…</div>
+    <div class="animate-pulse" aria-hidden="true">
+      <div class="h-7 bg-gray-100 rounded-lg w-2/3 mb-3"></div>
+      <div class="h-4 bg-gray-100 rounded w-1/3 mb-8"></div>
+      <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6">
+        <div class="h-5 bg-gray-100 rounded w-28 mb-4"></div>
+        <div class="h-11 bg-gray-100 rounded-xl mb-3"></div>
+        <div class="h-14 bg-gray-100 rounded-xl mb-2"></div>
+        <div class="h-14 bg-gray-100 rounded-xl"></div>
+      </div>
+    </div>
+    <span class="sr-only">Loading poll…</span>
   </div>
 </div>
 
@@ -331,10 +428,10 @@
     </div>
 
     <div class="mb-1">
-      <label for="login-password" class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Password</label>
+      <label for="login-password" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Password</label>
       <input type="password" id="login-password" placeholder="Enter password"
         onkeydown="if(event.key==='Enter') submitLogin()"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm transition-all placeholder-gray-300">
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm transition-all placeholder-gray-400">
     </div>
     <p id="login-error" class="text-red-500 text-sm mb-4 min-h-5"></p>
 
@@ -357,9 +454,9 @@
         <i data-lucide="plus" class="w-4 h-4"></i><span class="hidden sm:inline"> New Poll</span>
       </button>
     </div>
-    <p class="text-sm text-gray-400 mb-6">All polls you've created</p>
+    <p class="text-sm text-gray-500 mb-6">All polls you've created</p>
     <div id="dashboard-list" class="space-y-2">
-      <div class="text-center py-12 text-gray-400 text-sm">Loading…</div>
+      <div class="text-center py-12 text-gray-500 text-sm">Loading…</div>
     </div>
   </div>
 </div>
@@ -447,7 +544,7 @@ async function goToDashboard() {
 
 async function loadDashboard() {
   const list = document.getElementById('dashboard-list');
-  list.innerHTML = '<div class="text-center py-12 text-gray-400 text-sm">Loading…</div>';
+  list.innerHTML = '<div class="text-center py-12 text-gray-500 text-sm">Loading…</div>';
   try {
     const res = await fetch('/api/admin/polls');
     if (res.status === 401) {
@@ -460,8 +557,8 @@ async function loadDashboard() {
     if (polls.length === 0) {
       list.innerHTML = `
         <div class="text-center py-12 bg-gray-50 border border-gray-100 rounded-2xl">
-          <i data-lucide="inbox" class="w-8 h-8 text-gray-300 mx-auto mb-3"></i>
-          <p class="text-sm text-gray-400">No polls yet — create your first one!</p>
+          <i data-lucide="inbox" class="w-8 h-8 text-gray-400 mx-auto mb-3"></i>
+          <p class="text-sm text-gray-500">No polls yet — create your first one!</p>
         </div>`;
       renderIcons();
       return;
@@ -470,10 +567,14 @@ async function loadDashboard() {
       const isConfirmed = !!poll.confirmedSlot;
       const date = new Date(poll.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const voteCount = poll.votes.length;
-      const typeIcon = poll.type === 'question'
-        ? '<i data-lucide="list-checks" class="w-3.5 h-3.5 text-purple-500"></i>'
-        : '<i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>';
-      const typeLabel = poll.type === 'question' ? 'Question' : 'Schedule';
+      const typeMeta = {
+        question:     { icon: 'list-checks',    color: 'text-purple-500', label: 'Question' },
+        rsvp:         { icon: 'user-check',      color: 'text-teal-500',   label: 'RSVP' },
+        availability: { icon: 'calendar-range',  color: 'text-indigo-500', label: 'Availability' },
+        schedule:     { icon: 'calendar',        color: 'text-blue-500',   label: 'Schedule' }
+      }[poll.type] || { icon: 'calendar', color: 'text-blue-500', label: 'Schedule' };
+      const typeIcon  = `<i data-lucide="${typeMeta.icon}" class="w-3.5 h-3.5 ${typeMeta.color}"></i>`;
+      const typeLabel = typeMeta.label;
       const badge = isConfirmed
         ? `<span class="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full whitespace-nowrap">
              <i data-lucide="check-circle" class="w-3 h-3"></i> Confirmed
@@ -483,7 +584,7 @@ async function loadDashboard() {
         <div class="bg-white border border-gray-100 hover:border-blue-200 hover:bg-blue-50 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 transition-all">
           <div onclick="openPollFromDashboard('${poll.id}')" class="min-w-0 flex-1 cursor-pointer">
             <div class="font-semibold text-sm text-gray-900 mb-0.5 truncate">${esc(poll.title)}</div>
-            <div class="flex items-center gap-2 text-xs text-gray-400">
+            <div class="flex items-center gap-2 text-xs text-gray-500">
               ${typeIcon} ${typeLabel}
               <span class="text-gray-200">·</span>
               ${esc(date)}
@@ -493,12 +594,12 @@ async function loadDashboard() {
           </div>
           <div class="flex items-center gap-2 shrink-0">
             ${badge}
-            <button onclick="clonePoll(event,'${poll.id}')" title="Clone poll"
-              class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-blue-400 hover:bg-blue-50 rounded-lg transition-all">
+            <button onclick="clonePoll(event,'${poll.id}')" title="Clone poll" aria-label="Clone poll"
+              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-400 hover:bg-blue-50 rounded-lg transition-all">
               <i data-lucide="copy" class="w-4 h-4"></i>
             </button>
-            <button onclick="deletePoll(event,'${poll.id}')" title="Delete poll"
-              class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all">
+            <button onclick="deletePoll(event,'${poll.id}')" title="Delete poll" aria-label="Delete poll"
+              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all">
               <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
           </div>
@@ -605,31 +706,91 @@ function tzSelectHTML(id, selected) {
 // ────────────────────────────────────────────────────
 // CREATE FORM
 // ────────────────────────────────────────────────────
+const CREATE_COPY = {
+  schedule:     { title: 'Find a Time',      sub: 'Add your details and the time options you want people to vote on.', label: 'Poll Title',    ph: 'e.g. Team lunch, Project kickoff…' },
+  question:     { title: 'Ask a Question',   sub: 'Add your question and the options people will rank.',                label: 'Your Question', ph: 'e.g. What movie should we watch?' },
+  rsvp:         { title: 'Quick RSVP',       sub: 'Ask one thing and get a live headcount.',                            label: 'Your Question', ph: 'e.g. Coming to the offsite?' },
+  availability: { title: 'Availability Grid',sub: 'Pick the days and hours, then let everyone paint when they are free.', label: 'Poll Title', ph: 'e.g. Weekly sync, Study group…' }
+};
+
 function initCreateForm() {
   document.getElementById('poll-title').value   = '';
   document.getElementById('creator-name').value = '';
   document.getElementById('poll-deadline').value = '';
   document.getElementById('poll-expected-voters').value = '';
   document.getElementById('create-error').textContent = '';
+  const rsvpDetails = document.getElementById('rsvp-details');
+  if (rsvpDetails) rsvpDetails.value = '';
 
-  const isQ = createPollType === 'question';
-  document.getElementById('create-title').textContent = isQ ? 'Ask a Question' : 'Find a Time';
-  document.getElementById('create-sub').textContent   = isQ
-    ? 'Add your question and the options people will rank.'
-    : 'Add your details and the time options you want people to vote on.';
-  document.getElementById('poll-title-label').textContent = isQ ? 'Your Question' : 'Poll Title';
-  document.getElementById('poll-title').placeholder       = isQ ? 'e.g. What movie should we watch?' : 'e.g. Team lunch, Project kickoff…';
+  const t = createPollType;
+  const copy = CREATE_COPY[t] || CREATE_COPY.schedule;
+  document.getElementById('create-title').textContent     = copy.title;
+  document.getElementById('create-sub').textContent       = copy.sub;
+  document.getElementById('poll-title-label').textContent = copy.label;
+  document.getElementById('poll-title').placeholder       = copy.ph;
 
-  document.getElementById('schedule-options-section').style.display = isQ ? 'none' : '';
-  document.getElementById('question-options-section').style.display = isQ ? '' : 'none';
+  document.getElementById('schedule-options-section').style.display     = t === 'schedule' ? '' : 'none';
+  document.getElementById('question-options-section').style.display     = t === 'question' ? '' : 'none';
+  document.getElementById('rsvp-options-section').style.display         = t === 'rsvp' ? '' : 'none';
+  document.getElementById('availability-options-section').style.display = t === 'availability' ? '' : 'none';
 
-  if (isQ) {
+  if (t === 'question') {
     document.getElementById('options-list').innerHTML = '';
     addOption(); addOption(); addOption();
-  } else {
+  } else if (t === 'schedule') {
     document.getElementById('slots-list').innerHTML = '';
     addSlot(); addSlot();
+  } else if (t === 'availability') {
+    initAvailSetup();
   }
+}
+
+// ── Availability setup helpers ───────────────────────────
+function timeOptionsHTML(selected) {
+  let out = '';
+  for (let h = 0; h < 24; h++) {
+    const label = new Date(2020,0,1,h).toLocaleTimeString('en-US',{hour:'numeric',hour12:true});
+    out += `<option value="${h}"${h === selected ? ' selected' : ''}>${label}</option>`;
+  }
+  return out;
+}
+
+function initAvailSetup() {
+  document.getElementById('avail-start').innerHTML = timeOptionsHTML(9);
+  document.getElementById('avail-end').innerHTML   = timeOptionsHTML(17);
+  document.getElementById('avail-interval').value  = '60';
+  document.getElementById('avail-dates-list').innerHTML = '';
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  addAvailDate(d);
+  const d2 = new Date(); d2.setDate(d2.getDate() + 2);
+  addAvailDate(d2);
+}
+
+function addAvailDate(dateObj) {
+  const list = document.getElementById('avail-dates-list');
+  if (list.children.length >= 14) { showToast('Up to 14 dates.'); return; }
+  const uid = 'ad_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+  const d   = dateObj instanceof Date ? dateObj : new Date(Date.now() + 86400000);
+  const p   = n => String(n).padStart(2,'0');
+  const val = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  const div = document.createElement('div');
+  div.className = 'flex gap-2 items-center';
+  div.id = uid;
+  div.innerHTML = `
+    <input type="date" value="${val}" min="${localDatetimeValue(new Date()).slice(0,10)}"
+      class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">
+    <button onclick="removeAvailDate('${uid}')" title="Remove date" aria-label="Remove date"
+      class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
+      <i data-lucide="x" class="w-4 h-4"></i>
+    </button>`;
+  list.appendChild(div);
+  renderIcons();
+}
+
+function removeAvailDate(id) {
+  const list = document.getElementById('avail-dates-list');
+  if (list.children.length <= 1) { showToast('You need at least one date.'); return; }
+  document.getElementById(id)?.remove();
 }
 
 function localDatetimeValue(date) {
@@ -654,8 +815,8 @@ function addSlot(datetimeMs) {
   div.innerHTML = `
     <input type="datetime-local" value="${localDatetimeValue(dflt)}" ${minAttr}
       class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">
-    <button onclick="removeSlot('${uid}')" title="Remove"
-      class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
+    <button onclick="removeSlot('${uid}')" title="Remove time slot" aria-label="Remove time slot"
+      class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
       <i data-lucide="x" class="w-4 h-4"></i>
     </button>`;
   list.appendChild(div);
@@ -681,9 +842,9 @@ function addOption() {
   div.innerHTML = `
     <span class="w-7 h-7 shrink-0 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 option-label">${OPTION_LETTERS[idx] || (idx+1)}</span>
     <input type="text" placeholder="Option ${OPTION_LETTERS[idx] || idx+1}" maxlength="120"
-      class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
-    <button onclick="removeOption('${uid}')" title="Remove"
-      class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
+      class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+    <button onclick="removeOption('${uid}')" title="Remove option" aria-label="Remove option"
+      class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
       <i data-lucide="x" class="w-4 h-4"></i>
     </button>`;
   list.appendChild(div);
@@ -721,6 +882,26 @@ async function createPoll() {
       if (!inp.value.trim()) { errEl.textContent = 'Please fill in all options.'; return; }
       slots.push({ label: inp.value.trim() });
     }
+  } else if (createPollType === 'rsvp') {
+    const details = document.getElementById('rsvp-details')?.value.trim();
+    slots = [{ label: details || 'Attending' }];
+  } else if (createPollType === 'availability') {
+    const dateInputs = document.querySelectorAll('#avail-dates-list input[type="date"]');
+    if (!dateInputs.length) { errEl.textContent = 'Please add at least one date.'; return; }
+    const startH   = parseInt(document.getElementById('avail-start').value);
+    const endH     = parseInt(document.getElementById('avail-end').value);
+    const interval = parseInt(document.getElementById('avail-interval').value);
+    if (endH <= startH) { errEl.textContent = 'End time must be after start time.'; return; }
+    slots = [];
+    for (const inp of dateInputs) {
+      if (!inp.value) { errEl.textContent = 'Please fill in all dates.'; return; }
+      const [y, m, d] = inp.value.split('-').map(Number);
+      for (let mins = startH * 60; mins < endH * 60; mins += interval) {
+        const dt = new Date(y, m - 1, d, Math.floor(mins / 60), mins % 60);
+        slots.push({ datetime: dt.getTime() });
+      }
+    }
+    if (slots.length > 400) { errEl.textContent = 'That grid is too large — reduce dates or hours.'; return; }
   } else {
     const inputs = document.querySelectorAll('#slots-list input[type="datetime-local"]');
     if (!inputs.length) { errEl.textContent = 'Please add at least one time slot.'; return; }
@@ -792,10 +973,10 @@ async function loadPoll(id) {
       container.innerHTML = `
         <div class="text-center py-20">
           <div class="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <i data-lucide="search-x" class="w-7 h-7 text-gray-400"></i>
+            <i data-lucide="search-x" class="w-7 h-7 text-gray-500"></i>
           </div>
           <h2 class="text-lg font-bold text-gray-900 mb-2">Poll not found</h2>
-          <p class="text-sm text-gray-400 mb-6">This poll may have been deleted or the link is incorrect.</p>
+          <p class="text-sm text-gray-500 mb-6">This poll may have been deleted or the link is incorrect.</p>
           <button onclick="goHome()" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all">
             <i data-lucide="home" class="w-4 h-4"></i> Go Home
           </button>
@@ -815,8 +996,385 @@ async function loadPoll(id) {
 // POLL PAGE — RENDER (dispatcher)
 // ────────────────────────────────────────────────────
 function renderPoll() {
-  if (currentPoll.type === 'question') { renderQuestionPoll(); return; }
+  if (currentPoll.type === 'question')     { renderQuestionPoll(); return; }
+  if (currentPoll.type === 'rsvp')         { renderRsvpPoll(); return; }
+  if (currentPoll.type === 'availability') { renderAvailabilityPoll(); return; }
   renderSchedulePoll();
+}
+
+// ────────────────────────────────────────────────────
+// DEADLINE LINE HELPER (shared)
+// ────────────────────────────────────────────────────
+function deadlineLineHTML(poll) {
+  if (!poll.deadline) return '';
+  const closed = Date.now() > poll.deadline;
+  const when = new Date(poll.deadline).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+  return `<div class="flex items-center gap-1.5 text-xs mt-1 ${closed ? 'text-red-500' : 'text-gray-500'}">
+      <i data-lucide="clock" class="w-3 h-3"></i>
+      ${closed ? 'Voting closed' : 'Closes'} ${when}
+     </div>`;
+}
+
+// ════════════════════════════════════════════════════
+// RSVP POLL
+// ════════════════════════════════════════════════════
+function renderRsvpPoll() {
+  const poll = currentPoll;
+  document.getElementById('poll-container').innerHTML = `
+    ${renderPollHeader(poll, deadlineLineHTML(poll))}
+    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6" id="rsvp-vote-card">
+      ${renderRsvpVoteForm(poll)}
+    </div>
+    <div id="rsvp-results-section">${renderRsvpResults(poll)}</div>
+    ${renderWhoHasntVoted(poll)}
+    ${renderManageResponses(poll)}`;
+  renderIcons();
+  if (prefillVoterName) {
+    const el = document.getElementById('vote-name');
+    if (el) el.value = prefillVoterName;
+    prefillVoterName = null;
+  }
+}
+
+function renderRsvpVoteForm(poll) {
+  if (poll.deadline && Date.now() > poll.deadline) return renderClosedCard();
+  const record = getVoteRecord(poll.id);
+  if (record) return renderAlreadyVotedCard(record.name, poll.id);
+
+  const sid = poll.slots[0].id;
+  const cur = voteResponses[sid];
+  const detail = poll.slots[0].label && poll.slots[0].label !== 'Attending'
+    ? `<p class="text-sm text-gray-600 mb-4">${esc(poll.slots[0].label)}</p>` : '';
+  const mk = (val, label, icon) =>
+    `<button type="button" class="rsvp-btn flex-1 flex flex-col items-center gap-1.5 py-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:border-gray-300 ${cur === val ? 'sel-' + val : ''}" onclick="setRsvpVote('${val}')">
+       <i data-lucide="${icon}" class="w-5 h-5"></i> ${label}
+     </button>`;
+
+  return `
+    <h2 class="font-bold text-gray-900 mb-1">Are you in?</h2>
+    ${detail}
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
+      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+    </div>
+    <div class="flex gap-2 mb-4" id="rsvp-btns">${mk('yes','Yes','check')}${mk('maybe','Maybe','help-circle')}${mk('no','No','x')}</div>
+    <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
+    <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
+      id="vote-btn" onclick="submitRsvpVote()">
+      <i data-lucide="send" class="w-4 h-4"></i> Submit Response
+    </button>`;
+}
+
+function setRsvpVote(val) {
+  const sid = currentPoll.slots[0].id;
+  voteResponses[sid] = val;
+  document.querySelectorAll('#rsvp-btns .rsvp-btn').forEach(btn => {
+    btn.classList.remove('sel-yes','sel-maybe','sel-no');
+  });
+  const btns = document.querySelectorAll('#rsvp-btns .rsvp-btn');
+  ({ yes: btns[0], maybe: btns[1], no: btns[2] })[val]?.classList.add('sel-' + val);
+}
+
+async function submitRsvpVote() {
+  const name  = document.getElementById('vote-name')?.value.trim();
+  const errEl = document.getElementById('vote-error');
+  errEl.textContent = '';
+  if (!name) { errEl.textContent = 'Please enter your name.'; return; }
+  const sid = currentPoll.slots[0].id;
+  const choice = voteResponses[sid];
+  if (!choice) { errEl.textContent = 'Pick Yes, Maybe, or No.'; return; }
+
+  const btn = document.getElementById('vote-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    const res = await fetch(`/api/polls/${currentPollId}/vote`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, timezone: 'UTC', responses: { [sid]: choice } })
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
+    setVoteRecord(currentPollId, name);
+    showToast('Response saved!');
+    voteResponses = {};
+    await loadPoll(currentPollId);
+  } catch (e) {
+    errEl.textContent = e.message;
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Submit Response';
+    renderIcons();
+  }
+}
+
+function renderRsvpResults(poll) {
+  const sid = poll.slots[0].id;
+  const groups = { yes: [], maybe: [], no: [] };
+  poll.votes.forEach(v => {
+    const r = v.responses[sid];
+    if (groups[r]) groups[r].push(v.name);
+  });
+
+  if (poll.votes.length === 0) {
+    return `
+      <h2 class="font-bold text-gray-900 mb-4">Headcount</h2>
+      <div class="text-center py-10 bg-gray-50 border border-gray-100 rounded-2xl">
+        <i data-lucide="users" class="w-8 h-8 text-gray-400 mx-auto mb-3"></i>
+        <p class="text-sm text-gray-500">No responses yet — share the link to get a headcount!</p>
+      </div>`;
+  }
+
+  const stat = (label, count, color) => `
+    <div class="flex-1 bg-gray-50 border border-gray-100 rounded-2xl p-4 text-center">
+      <div class="text-2xl font-bold ${color}">${count}</div>
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-0.5">${label}</div>
+    </div>`;
+
+  const nameRow = (names, response) => names.length === 0 ? '' : `
+    <div class="flex flex-wrap gap-1.5 items-center py-2">
+      <span class="text-xs font-semibold text-gray-500 w-14 shrink-0">${response === 'yes' ? 'Yes' : response === 'maybe' ? 'Maybe' : 'No'}</span>
+      ${names.map(n => avatarChip(n, response)).join('')}
+    </div>`;
+
+  return `
+    <h2 class="font-bold text-gray-900 mb-4">Headcount</h2>
+    <div class="flex gap-2 mb-4">
+      ${stat('Yes', groups.yes.length, 'text-green-600')}
+      ${stat('Maybe', groups.maybe.length, 'text-amber-500')}
+      ${stat('No', groups.no.length, 'text-gray-400')}
+    </div>
+    <div class="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-2 divide-y divide-gray-100">
+      ${nameRow(groups.yes, 'yes')}
+      ${nameRow(groups.maybe, 'maybe')}
+      ${nameRow(groups.no, 'no')}
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════
+// AVAILABILITY GRID POLL
+// ════════════════════════════════════════════════════
+let availPaint = { active: false, mode: 'add' };
+
+function availStructure(poll, tz) {
+  const map = {}, dateSet = {}, timeSet = {};
+  poll.slots.forEach(s => {
+    const d = new Date(s.datetime);
+    const dateKey   = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+    const dateLabel = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' }).format(d);
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d);
+    const hh = +parts.find(p => p.type === 'hour').value;
+    const mm = +parts.find(p => p.type === 'minute').value;
+    const timeMins  = hh * 60 + mm;
+    const timeLabel = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(d);
+    dateSet[dateKey] = dateLabel;
+    timeSet[timeMins] = timeLabel;
+    map[dateKey + '|' + timeMins] = s.id;
+  });
+  const dates = Object.keys(dateSet).sort().map(k => ({ key: k, label: dateSet[k] }));
+  const times = Object.keys(timeSet).map(Number).sort((a, b) => a - b).map(m => ({ mins: m, label: timeSet[m] }));
+  return { dates, times, map };
+}
+
+// Diverging heat scale by share of respondents available.
+function heatColor(count, total) {
+  if (total === 0 || count === 0) return { bg: '#fee2e2', text: '#b91c1c' }; // no good
+  const r = count / total;
+  if (r >= 0.8) return { bg: '#15803d', text: '#ffffff' }; // dark green — great
+  if (r >= 0.6) return { bg: '#4ade80', text: '#14532d' }; // green — good
+  if (r >= 0.4) return { bg: '#bbf7d0', text: '#166534' }; // light green — ok
+  if (r >= 0.2) return { bg: '#fde047', text: '#713f12' }; // yellow — not so good
+  return { bg: '#fca5a5', text: '#7f1d1d' };               // red — poor
+}
+
+function renderAvailabilityPoll() {
+  const poll = currentPoll;
+  const tz   = getUserTimezone();
+  document.getElementById('poll-container').innerHTML = `
+    ${renderPollHeader(poll, deadlineLineHTML(poll))}
+    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6" id="avail-vote-card">
+      ${renderAvailabilityVoteForm(poll, tz)}
+    </div>
+    <div id="avail-results-section">${renderAvailabilityResults(poll, tz)}</div>
+    ${renderWhoHasntVoted(poll)}
+    ${renderManageResponses(poll)}`;
+  renderIcons();
+  attachAvailPaint();
+  if (prefillVoterName) {
+    const el = document.getElementById('vote-name');
+    if (el) el.value = prefillVoterName;
+    prefillVoterName = null;
+  }
+}
+
+function gridColsStyle(n) {
+  return `display:grid;grid-template-columns:60px repeat(${n}, minmax(44px, 1fr));gap:3px;min-width:${60 + n * 47}px;`;
+}
+
+function renderAvailabilityVoteForm(poll, tz) {
+  if (poll.deadline && Date.now() > poll.deadline) return renderClosedCard();
+  const record = getVoteRecord(poll.id);
+  if (record) return renderAlreadyVotedCard(record.name, poll.id);
+
+  const { dates, times, map } = availStructure(poll, tz);
+
+  const headerCells = `<div></div>` + dates.map(d =>
+    `<div class="text-[11px] font-semibold text-gray-600 text-center leading-tight pb-1">${esc(d.label)}</div>`
+  ).join('');
+
+  const rows = times.map(t => {
+    const cells = dates.map(d => {
+      const sid = map[d.key + '|' + t.mins];
+      if (!sid) return `<div class="h-8"></div>`;
+      const sel = voteResponses[sid] === 'yes' ? ' sel' : '';
+      return `<div class="avail-cell border border-gray-200 bg-white h-8 rounded cursor-pointer${sel}" data-slot="${sid}"></div>`;
+    }).join('');
+    return `<div class="text-[11px] text-gray-500 text-right pr-1 flex items-center justify-end">${esc(t.label)}</div>${cells}`;
+  }).join('');
+
+  return `
+    <h2 class="font-bold text-gray-900 mb-1">Mark when you're free</h2>
+    <p class="text-xs text-gray-500 mb-4">Drag across the grid to paint your available times. Times shown in ${esc(tz)}.</p>
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
+      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+    </div>
+    <div class="overflow-x-auto pb-2 -mx-1 px-1">
+      <div id="avail-grid" style="${gridColsStyle(dates.length)}touch-action:none;">
+        ${headerCells}
+        ${rows}
+      </div>
+    </div>
+    <p id="vote-error" class="text-red-500 text-sm mt-3 mb-3 min-h-5"></p>
+    <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
+      id="vote-btn" onclick="submitAvailabilityVote()">
+      <i data-lucide="send" class="w-4 h-4"></i> Submit Availability
+    </button>`;
+}
+
+function attachAvailPaint() {
+  const grid = document.getElementById('avail-grid');
+  if (!grid) return;
+  const apply = cell => {
+    const sid = cell.dataset.slot;
+    if (!sid) return;
+    if (availPaint.mode === 'add') { voteResponses[sid] = 'yes'; cell.classList.add('sel'); }
+    else { delete voteResponses[sid]; cell.classList.remove('sel'); }
+  };
+  grid.addEventListener('pointerdown', e => {
+    const cell = e.target.closest('.avail-cell');
+    if (!cell) return;
+    e.preventDefault();
+    availPaint.active = true;
+    availPaint.mode = voteResponses[cell.dataset.slot] === 'yes' ? 'remove' : 'add';
+    apply(cell);
+  });
+  grid.addEventListener('pointermove', e => {
+    if (!availPaint.active) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const cell = el && el.closest && el.closest('.avail-cell');
+    if (cell && grid.contains(cell)) apply(cell);
+  });
+  window.addEventListener('pointerup', () => { availPaint.active = false; });
+}
+
+async function submitAvailabilityVote() {
+  const name  = document.getElementById('vote-name')?.value.trim();
+  const errEl = document.getElementById('vote-error');
+  errEl.textContent = '';
+  if (!name) { errEl.textContent = 'Please enter your name.'; return; }
+
+  const responses = {};
+  currentPoll.slots.forEach(s => { if (voteResponses[s.id] === 'yes') responses[s.id] = 'yes'; });
+  if (Object.keys(responses).length === 0) { errEl.textContent = 'Paint at least one time you\'re free.'; return; }
+
+  const btn = document.getElementById('vote-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    const res = await fetch(`/api/polls/${currentPollId}/vote`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, timezone: getUserTimezone(), responses })
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
+    setVoteRecord(currentPollId, name);
+    showToast('Availability saved!');
+    voteResponses = {};
+    await loadPoll(currentPollId);
+  } catch (e) {
+    errEl.textContent = e.message;
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Submit Availability';
+    renderIcons();
+  }
+}
+
+function renderAvailabilityResults(poll, tz) {
+  const total = poll.votes.length;
+  const header = `<h2 class="font-bold text-gray-900 mb-1">Overlap</h2>`;
+
+  if (total === 0) {
+    return header + `
+      <div class="text-center py-10 bg-gray-50 border border-gray-100 rounded-2xl mt-3">
+        <i data-lucide="calendar-range" class="w-8 h-8 text-gray-400 mx-auto mb-3"></i>
+        <p class="text-sm text-gray-500">No availability yet — share the link so people can fill it in.</p>
+      </div>`;
+  }
+
+  const { dates, times, map } = availStructure(poll, tz);
+  const counts = {};
+  poll.slots.forEach(s => { counts[s.id] = 0; });
+  poll.votes.forEach(v => {
+    poll.slots.forEach(s => { if (v.responses[s.id] === 'yes') counts[s.id]++; });
+  });
+  const namesFor = sid => poll.votes.filter(v => v.responses[sid] === 'yes').map(v => v.name);
+  const maxCount = Math.max(1, ...Object.values(counts));
+
+  const headerCells = `<div></div>` + dates.map(d =>
+    `<div class="text-[11px] font-semibold text-gray-600 text-center leading-tight pb-1">${esc(d.label)}</div>`
+  ).join('');
+
+  const rows = times.map(t => {
+    const cells = dates.map(d => {
+      const sid = map[d.key + '|' + t.mins];
+      if (!sid) return `<div class="h-8"></div>`;
+      const c = counts[sid];
+      const best = c === maxCount && c > 0;
+      const { bg, text } = heatColor(c, total);
+      const ring = best ? 'box-shadow:0 0 0 2px #14532d;z-index:1;' : '';
+      const names = namesFor(sid);
+      const title = names.length ? `${names.join(', ')} (${c}/${total})` : `Nobody free (0/${total})`;
+      return `<div class="heat-cell h-8 rounded flex items-center justify-center text-[11px] font-semibold" style="background:${bg};color:${text};${ring}" title="${esc(title)}">${c || ''}</div>`;
+    }).join('');
+    return `<div class="text-[11px] text-gray-500 text-right pr-1 flex items-center justify-end">${esc(t.label)}</div>${cells}`;
+  }).join('');
+
+  // Best slots summary
+  const bestSlots = poll.slots.filter(s => counts[s.id] === maxCount && maxCount > 0);
+  const bestSummary = bestSlots.slice(0, 3).map(s => {
+    const { dateStr, timeStr } = formatSlot(s.datetime, tz);
+    return `${dateStr.replace(/,.*/, '')} ${timeStr.replace(/\s[A-Z]+$/, '')}`;
+  }).join(' · ');
+
+  const legend = `
+    <div class="flex items-center flex-wrap gap-x-3 gap-y-1 mb-3 text-[11px] text-gray-500">
+      <span class="font-semibold text-gray-600">${maxCount}/${total} free at best time</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#15803d"></span>Most</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#bbf7d0"></span>Some</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#fde047"></span>Few</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#fca5a5"></span>Fewer</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#fee2e2"></span>None</span>
+    </div>`;
+
+  return header + `
+    ${legend}
+    <div class="bg-white border border-gray-100 rounded-2xl p-3 overflow-x-auto">
+      <div style="${gridColsStyle(dates.length)}">
+        ${headerCells}
+        ${rows}
+      </div>
+    </div>
+    ${bestSummary ? `<div class="flex items-start gap-2 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 mt-3">
+      <i data-lucide="star" class="w-4 h-4 text-green-600 mt-0.5 shrink-0"></i>
+      <div class="text-sm text-green-800"><span class="font-semibold">Best overlap:</span> ${esc(bestSummary)}</div>
+    </div>` : ''}`;
 }
 
 // ────────────────────────────────────────────────────
@@ -824,8 +1382,8 @@ function renderPoll() {
 // ────────────────────────────────────────────────────
 function renderPollHeader(poll, deadlineLine) {
   const editBtn = isAdmin
-    ? `<button onclick="startEditTitle()" title="Edit title"
-        class="p-1.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all shrink-0">
+    ? `<button onclick="startEditTitle()" title="Edit title" aria-label="Edit poll title"
+        class="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all shrink-0">
         <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
        </button>`
     : '';
@@ -835,13 +1393,13 @@ function renderPollHeader(poll, deadlineLine) {
         <div class="flex items-start gap-1.5">
           <h1 class="text-2xl font-bold text-gray-900 flex-1 leading-tight">${esc(poll.title)}</h1>
           ${editBtn}
-          <button onclick="sharePoll()" title="Share poll"
-            class="p-1.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all shrink-0">
+          <button onclick="sharePoll()" title="Share poll" aria-label="Share poll"
+            class="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all shrink-0">
             <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
           </button>
         </div>
       </div>
-      <div class="flex items-center gap-2 text-sm text-gray-400 mt-1">
+      <div class="flex items-center gap-2 text-sm text-gray-500 mt-1">
         <i data-lucide="user" class="w-3.5 h-3.5"></i>
         Created by <strong class="text-gray-600">${esc(poll.creatorName)}</strong>
         <span class="text-gray-200">·</span>
@@ -887,16 +1445,16 @@ function renderManageResponses(poll) {
     <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
       <span class="text-sm text-gray-700">${esc(v.name)}</span>
       <button onclick="deleteVote('${esc(v.name)}')" title="Remove vote"
-        class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-all">
+        class="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-all">
         <i data-lucide="x" class="w-3.5 h-3.5"></i> Remove
       </button>
     </div>`).join('');
   return `
     <details class="mt-4 bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
       <summary class="flex items-center gap-2 px-4 py-3 cursor-pointer text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-all select-none" style="list-style:none">
-        <i data-lucide="settings" class="w-4 h-4 text-gray-400"></i>
+        <i data-lucide="settings" class="w-4 h-4 text-gray-500"></i>
         Manage Responses (${poll.votes.length})
-        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 ml-auto"></i>
+        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-500 ml-auto"></i>
       </summary>
       <div class="px-4 pb-3">${rows}</div>
     </details>`;
@@ -977,7 +1535,7 @@ function toggleResultsSort() {
 function renderQuestionPoll() {
   const poll = currentPoll;
   const qDeadlineLine = poll.deadline
-    ? `<div class="flex items-center gap-1.5 text-xs mt-1 ${Date.now() > poll.deadline ? 'text-red-500' : 'text-gray-400'}">
+    ? `<div class="flex items-center gap-1.5 text-xs mt-1 ${Date.now() > poll.deadline ? 'text-red-500' : 'text-gray-500'}">
         <i data-lucide="clock" class="w-3 h-3"></i>
         ${Date.now() > poll.deadline ? 'Voting closed' : 'Closes'} ${new Date(poll.deadline).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}
        </div>`
@@ -1011,18 +1569,18 @@ function renderQuestionVoteForm(poll) {
     return `
       <div class="rc-option bg-white border-2 border-gray-100 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer select-none${rank ? ' ranked' : ''}"
         id="rc-${opt.id}" onclick="toggleRank('${opt.id}')">
-        <div class="rc-rank w-7 h-7 rounded-full border-2 border-gray-200 bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-400 shrink-0 transition-all">${rank || ''}</div>
+        <div class="rc-rank min-w-7 h-7 px-1.5 rounded-full border-2 border-gray-200 bg-gray-100 flex items-center justify-center text-[11px] font-bold text-gray-500 shrink-0 transition-all">${ordinal(rank)}</div>
         <div class="text-sm font-medium text-gray-800">${esc(opt.label)}</div>
       </div>`;
   }).join('');
 
   return `
     <h2 class="font-bold text-gray-900 mb-1">Cast Your Vote</h2>
-    <p class="text-xs text-gray-400 mb-4">Tap options in order of preference — 1st pick, 2nd, etc. Tap again to remove.</p>
+    <p class="text-xs text-gray-500 mb-4">Tap options in order of preference — 1st pick, 2nd, etc. Tap again to remove.</p>
     <div class="mb-4">
-      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Your Name</label>
+      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
       <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
     </div>
     <div class="space-y-2 mb-4" id="rc-options">${optionsHTML}</div>
     <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
@@ -1051,7 +1609,7 @@ function toggleRank(optId) {
     if (!el) return;
     const rank = voteResponses[opt.id] || null;
     el.className = 'rc-option bg-white border-2 border-gray-100 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer select-none' + (rank ? ' ranked' : '');
-    el.querySelector('.rc-rank').textContent = rank || '';
+    el.querySelector('.rc-rank').textContent = ordinal(rank);
   });
 }
 
@@ -1114,7 +1672,7 @@ function renderQuestionResults(poll) {
   const winnerScore = scores[sorted[0].id];
 
   const qSortToggle = poll.votes.length > 1
-    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-500 transition-colors">
+    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-500 transition-colors">
         <i data-lucide="arrow-up-down" class="w-3 h-3"></i> ${resultsSortByScore ? 'Original order' : 'Best first'}
        </button>`
     : '';
@@ -1125,8 +1683,8 @@ function renderQuestionResults(poll) {
         <h2 class="font-bold text-gray-900">Results</h2>
       </div>
       <div class="text-center py-10 bg-gray-50 border border-gray-100 rounded-2xl">
-        <i data-lucide="bar-chart-2" class="w-8 h-8 text-gray-300 mx-auto mb-3"></i>
-        <p class="text-sm text-gray-400">No votes yet — share the link to get responses!</p>
+        <i data-lucide="bar-chart-2" class="w-8 h-8 text-gray-400 mx-auto mb-3"></i>
+        <p class="text-sm text-gray-500">No votes yet — share the link to get responses!</p>
       </div>`;
   }
 
@@ -1144,12 +1702,12 @@ function renderQuestionResults(poll) {
       <div>
         <div class="flex justify-between items-baseline mb-1.5">
           <span class="text-sm font-semibold text-gray-800">${isWinner ? '<span class="text-amber-500 mr-1">🏆</span>' : ''}${esc(opt.label)}</span>
-          <span class="text-xs text-gray-400">${score} pt${score !== 1 ? 's' : ''}</span>
+          <span class="text-xs text-gray-500">${score} pt${score !== 1 ? 's' : ''}</span>
         </div>
         <div class="bg-gray-100 rounded-full h-2 overflow-hidden mb-1">
           <div class="q-bar-fill h-full rounded-full ${isWinner ? 'bg-green-500' : 'bg-blue-500'}" style="width:${pct}%"></div>
         </div>
-        ${voters1st > 0 ? `<p class="text-xs text-gray-400">${voters1st} first choice${voters1st !== 1 ? 's' : ''}: ${voterNames}</p>` : ''}
+        ${voters1st > 0 ? `<p class="text-xs text-gray-500">${voters1st} first choice${voters1st !== 1 ? 's' : ''}: ${voterNames}</p>` : ''}
       </div>`;
   }).join('');
 
@@ -1158,13 +1716,13 @@ function renderQuestionResults(poll) {
       <h2 class="font-bold text-gray-900">Results</h2>
       <div class="flex items-center gap-3">
         ${qSortToggle}
-        <span class="text-xs text-gray-400">Ranked-choice</span>
+        <span class="text-xs text-gray-500">Ranked-choice</span>
       </div>
     </div>
     <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 space-y-4">
       ${rows}
     </div>
-    <p class="mt-3 text-xs text-gray-400">Points: 1st pick = ${n} pts, 2nd = ${n-1} pts, etc.</p>`;
+    <p class="mt-3 text-xs text-gray-500">Points: 1st pick = ${n} pts, 2nd = ${n-1} pts, etc.</p>`;
 }
 
 // ────────────────────────────────────────────────────
@@ -1205,7 +1763,7 @@ function renderSchedulePoll() {
   }
 
   const deadlineLine = poll.deadline
-    ? `<div class="flex items-center gap-1.5 text-xs mt-1 ${Date.now() > poll.deadline ? 'text-red-500' : 'text-gray-400'}">
+    ? `<div class="flex items-center gap-1.5 text-xs mt-1 ${Date.now() > poll.deadline ? 'text-red-500' : 'text-gray-500'}">
         <i data-lucide="clock" class="w-3 h-3"></i>
         ${Date.now() > poll.deadline ? 'Voting closed' : 'Closes'} ${new Date(poll.deadline).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}
        </div>`
@@ -1258,11 +1816,11 @@ function renderVoteForm(poll, tz) {
       <div class="bg-white border border-gray-100 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" id="vs-${slot.id}">
         <div class="slot-label min-w-0">
           <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
-          <div class="text-xs text-gray-400">${esc(timeStr)}</div>
+          <div class="text-xs text-gray-500">${esc(timeStr)}</div>
         </div>
         <div class="vote-btns flex gap-1.5">
           <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='yes'   ? 'sel-yes'   : ''}" onclick="setVote('${slot.id}','yes')">✓ Yes</button>
-          <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slot.id}','maybe')">~ If I have to</button>
+          <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slot.id}','maybe')">~ Maybe</button>
           <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='no'    ? 'sel-no'    : ''}" onclick="setVote('${slot.id}','no')">✗ No</button>
         </div>
       </div>`;
@@ -1271,12 +1829,12 @@ function renderVoteForm(poll, tz) {
   return `
     <h2 class="font-bold text-gray-900 mb-4">Cast Your Vote</h2>
     <div class="mb-3">
-      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Your Name</label>
+      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
       <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
     </div>
     <div class="mb-4">
-      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Your Timezone</label>
+      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Timezone</label>
       ${tzSelectHTML('vote-tz', tz)}
     </div>
     <div class="space-y-2 mb-4" id="vote-slots">${slotsHTML}</div>
@@ -1296,7 +1854,7 @@ function setVote(slotId, value) {
   if (!el) return;
   el.querySelector('.vote-btns').innerHTML = `
     <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${value==='yes'   ? 'sel-yes'   : ''}" onclick="setVote('${slotId}','yes')">✓ Yes</button>
-    <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${value==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slotId}','maybe')">~ If I have to</button>
+    <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${value==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slotId}','maybe')">~ Maybe</button>
     <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${value==='no'    ? 'sel-no'    : ''}" onclick="setVote('${slotId}','no')">✗ No</button>
   `;
 }
@@ -1337,38 +1895,56 @@ async function submitVote() {
 // ────────────────────────────────────────────────────
 // RESULTS TABLE
 // ────────────────────────────────────────────────────
+function ordinal(n) {
+  if (!n) return '';
+  const s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// ── Avatar helpers (shared) ──────────────────────────────
+function initials(name) {
+  const parts = String(name).trim().split(/\s+/);
+  const chars = parts.length > 1 ? parts[0][0] + parts[parts.length-1][0] : parts[0].slice(0,2);
+  return chars.toUpperCase();
+}
+function avatarChip(name, response) {
+  const styles = {
+    yes:   'background:#16a34a;color:#fff',
+    maybe: 'background:#f59e0b;color:#fff',
+    no:    'background:#f3f4f6;color:#9ca3af',
+    none:  'background:#fff;color:#d1d5db;border:1px dashed #e5e7eb'
+  };
+  const label = response === 'yes' ? 'Yes' : response === 'maybe' ? 'Maybe' : response === 'no' ? 'No' : 'No response';
+  return `<span class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0"
+    style="${styles[response] || styles.none}" title="${esc(name)} — ${label}">${esc(initials(name))}</span>`;
+}
+
 function renderResults(poll, tz) {
   const sortToggle = poll.votes.length > 1
-    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-500 transition-colors">
+    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-500 transition-colors">
         <i data-lucide="arrow-up-down" class="w-3 h-3"></i> ${resultsSortByScore ? 'Original order' : 'Best first'}
        </button>`
     : '';
   const header = `
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
       <h2 class="font-bold text-gray-900">Results</h2>
-      <div class="flex items-center gap-3 text-xs text-gray-400">
+      <div class="flex items-center gap-3 text-xs text-gray-500">
         ${sortToggle}
         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span> Yes</span>
         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Maybe</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"></span> No</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-gray-300 inline-block"></span> No</span>
       </div>
     </div>`;
 
   if (poll.votes.length === 0) {
     return header + `
       <div class="text-center py-10 bg-gray-50 border border-gray-100 rounded-2xl">
-        <i data-lucide="bar-chart-2" class="w-8 h-8 text-gray-300 mx-auto mb-3"></i>
-        <p class="text-sm text-gray-400">No votes yet — share the link to get responses!</p>
+        <i data-lucide="bar-chart-2" class="w-8 h-8 text-gray-400 mx-auto mb-3"></i>
+        <p class="text-sm text-gray-500">No votes yet — share the link to get responses!</p>
       </div>`;
   }
 
-  const voterThs = poll.votes.map(v =>
-    `<th class="hidden sm:table-cell text-center text-xs font-semibold text-gray-400 px-2 py-2 max-w-16 whitespace-nowrap" title="${esc(v.name)}">
-      ${esc(v.name.length > 8 ? v.name.slice(0,8)+'…' : v.name)}
-    </th>`
-  ).join('');
-
-  // Compute scores for sorting
+  const total = poll.votes.length;
   const slotScores = {};
   poll.slots.forEach(s => { slotScores[s.id] = { yes: 0, maybe: 0 }; });
   poll.votes.forEach(vote => {
@@ -1378,67 +1954,72 @@ function renderResults(poll, tz) {
       if (r === 'maybe') slotScores[s.id].maybe++;
     });
   });
+  const scoreOf = id => slotScores[id].yes * 2 + slotScores[id].maybe;
 
-  const displaySlots = resultsSortByScore
-    ? [...poll.slots].sort((a, b) => {
-        const sa = slotScores[a.id], sb = slotScores[b.id];
-        return (sb.yes * 2 + sb.maybe) - (sa.yes * 2 + sa.maybe);
-      })
-    : poll.slots;
+  const sortedByScore = [...poll.slots].sort((a, b) => scoreOf(b.id) - scoreOf(a.id));
+  const bestScore = scoreOf(sortedByScore[0].id);
+  const winnerId  = bestScore > 0 ? sortedByScore[0].id : null;
 
-  const rows = displaySlots.map(slot => {
+  const displaySlots = resultsSortByScore ? sortedByScore : poll.slots;
+
+  const cards = displaySlots.map(slot => {
     const { dateStr, timeStr } = formatSlot(slot.datetime, tz);
-    const isConf = poll.confirmedSlot === slot.id;
+    const isConf   = poll.confirmedSlot === slot.id;
+    const isWinner = slot.id === winnerId && !poll.confirmedSlot;
+    const { yes, maybe } = slotScores[slot.id];
+    const yesPct   = Math.round((yes / total) * 100);
+    const maybePct = Math.round((maybe / total) * 100);
 
-    let yes = 0, maybe = 0;
-    const voteCells = poll.votes.map(v => {
-      const r = v.responses[slot.id] || 'none';
-      if (r === 'yes')   yes++;
-      if (r === 'maybe') maybe++;
-      const sym = r === 'yes' ? '✓' : r === 'maybe' ? '~' : r === 'no' ? '✗' : '–';
-      const cls = r === 'yes' ? 'vdot-yes' : r === 'maybe' ? 'vdot-maybe' : r === 'no' ? 'vdot-no' : 'vdot-none';
-      return `<td class="hidden sm:table-cell text-center px-2 py-3"><span class="vdot ${cls}" title="${r}">${sym}</span></td>`;
-    }).join('');
+    const avatars = poll.votes
+      .map(v => avatarChip(v.name, v.responses[slot.id] || 'none'))
+      .join('');
 
-    const scoreLabel = `<span class="font-bold text-blue-600 text-xs">${yes}✓${maybe > 0 ? ' ' + maybe + '~' : ''}</span>`;
+    const countLabel = `${yes} yes${maybe > 0 ? ` · ${maybe} maybe` : ''}`;
+
+    const border = isConf
+      ? 'border-2 border-green-500 bg-green-50'
+      : isWinner
+        ? 'border-2 border-green-500 bg-green-50'
+        : 'border border-gray-200 bg-white';
+
+    const badge = isConf
+      ? `<span class="inline-block bg-green-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full mb-1.5">CONFIRMED</span>`
+      : isWinner
+        ? `<span class="inline-block bg-green-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full mb-1.5">BEST MATCH</span>`
+        : '';
+
     const action = isConf
-      ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full whitespace-nowrap">
-           <i data-lucide="check" class="w-3 h-3"></i> Confirmed
-         </span>`
+      ? `<button onclick="unconfirmSlot()"
+           class="text-xs font-semibold text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0">Undo</button>`
       : `<button onclick="confirmSlot('${slot.id}')"
-           class="text-xs font-semibold text-white bg-green-500 hover:bg-green-600 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap">
-           Confirm
-         </button>`;
+           class="text-xs font-semibold ${isWinner ? 'text-white bg-green-600 hover:bg-green-700' : 'text-green-700 bg-white border border-green-200 hover:bg-green-50'} px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0">Confirm</button>`;
 
     return `
-      <tr class="${isConf ? 'confirmed-row' : ''}">
-        <td class="py-3 pr-3 min-w-28">
-          <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
-          <div class="text-xs text-gray-400">${esc(timeStr)}</div>
-        </td>
-        ${voteCells}
-        <td class="px-2 py-3 whitespace-nowrap">${scoreLabel}</td>
-        <td class="pl-2 py-3 whitespace-nowrap">${action}</td>
-      </tr>`;
+      <div class="${border} rounded-2xl p-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            ${badge}
+            <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
+            <div class="text-xs text-gray-500">${esc(timeStr)}</div>
+          </div>
+          ${action}
+        </div>
+        <div class="flex items-center gap-3 mt-3">
+          <div class="flex-1 flex h-2 rounded-full overflow-hidden bg-gray-100">
+            <div style="width:${yesPct}%" class="bg-green-500"></div>
+            <div style="width:${maybePct}%" class="bg-amber-500"></div>
+          </div>
+          <span class="text-xs font-semibold ${isWinner || isConf ? 'text-green-700' : 'text-gray-500'} whitespace-nowrap">${countLabel}</span>
+        </div>
+        <div class="flex flex-wrap gap-1.5 mt-3">${avatars}</div>
+      </div>`;
   }).join('');
 
   return header + `
-    <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-sm min-w-80">
-        <thead>
-          <tr class="border-b-2 border-gray-100">
-            <th class="text-left text-xs font-semibold text-gray-400 py-2 pr-3">Date &amp; Time</th>
-            ${voterThs}
-            <th class="text-xs font-semibold text-gray-400 px-2 py-2 whitespace-nowrap">Score</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-50">${rows}</tbody>
-      </table>
-    </div>
-    <p class="mt-3 text-xs text-gray-400 flex items-center gap-1">
-      <i data-lucide="clock" class="w-3 h-3"></i>
-      Times shown in your local timezone (${esc(tz)}). Click Confirm to lock in a time. <span class="sm:hidden">Individual responses visible on desktop.</span>
+    <div class="space-y-2.5">${cards}</div>
+    <p class="mt-3 text-xs text-gray-500 flex items-start gap-1">
+      <i data-lucide="clock" class="w-3 h-3 mt-0.5 shrink-0"></i>
+      <span>Times shown in your local timezone (${esc(tz)}). Tap a name to see how they voted; hit Confirm to lock in a time.</span>
     </p>`;
 }
 
@@ -1470,7 +2051,7 @@ function downloadICS(poll) {
 // CONFIRM / UNCONFIRM
 // ────────────────────────────────────────────────────
 async function confirmSlot(slotId) {
-  if (!confirm('Confirm this as the final meeting time?')) return;
+  if (!(await askConfirm('This locks in the final time and closes the decision. You can undo it afterward.', { title: 'Confirm this time?', okLabel: 'Confirm time', danger: false }))) return;
   try {
     const res = await fetch(`/api/polls/${currentPollId}/confirm`, {
       method: 'POST',
@@ -1506,7 +2087,7 @@ document.addEventListener('change', e => {
       const { dateStr, timeStr } = formatSlot(slot.datetime, newTZ);
       el.querySelector('.slot-label').innerHTML = `
         <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
-        <div class="text-xs text-gray-400">${esc(timeStr)}</div>`;
+        <div class="text-xs text-gray-500">${esc(timeStr)}</div>`;
     });
   }
 });
@@ -1516,7 +2097,7 @@ document.addEventListener('change', e => {
 // ────────────────────────────────────────────────────
 async function deletePoll(e, pollId) {
   e.stopPropagation();
-  if (!confirm('Delete this poll? This cannot be undone.')) return;
+  if (!(await askConfirm('This permanently deletes the poll and all its responses. This cannot be undone.', { title: 'Delete poll?', okLabel: 'Delete' }))) return;
   try {
     const res = await fetch(`/api/polls/${pollId}`, { method: 'DELETE' });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed');
@@ -1539,6 +2120,25 @@ async function clonePoll(e, pollId) {
     if (poll.type === 'schedule') {
       document.getElementById('slots-list').innerHTML = '';
       poll.slots.forEach(s => addSlot(s.datetime));
+    } else if (poll.type === 'rsvp') {
+      const details = poll.slots[0]?.label;
+      if (details && details !== 'Attending') document.getElementById('rsvp-details').value = details;
+    } else if (poll.type === 'availability') {
+      const tz = getUserTimezone();
+      const { dates, times } = availStructure(poll, tz);
+      document.getElementById('avail-dates-list').innerHTML = '';
+      dates.forEach(d => {
+        const [y, m, day] = d.key.split('-').map(Number);
+        addAvailDate(new Date(y, m - 1, day));
+      });
+      if (times.length) {
+        const startH = Math.floor(times[0].mins / 60);
+        const lastMins = times[times.length - 1].mins;
+        const step = times.length > 1 ? times[1].mins - times[0].mins : 60;
+        document.getElementById('avail-start').innerHTML    = timeOptionsHTML(startH);
+        document.getElementById('avail-end').innerHTML      = timeOptionsHTML(Math.min(23, Math.floor(lastMins / 60) + 1));
+        document.getElementById('avail-interval').value     = step === 30 ? '30' : '60';
+      }
     } else {
       document.getElementById('options-list').innerHTML = '';
       poll.slots.forEach((s, idx) => {
@@ -1550,9 +2150,9 @@ async function clonePoll(e, pollId) {
         div.innerHTML = `
           <span class="w-7 h-7 shrink-0 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 option-label">${OPTION_LETTERS[idx] || (idx+1)}</span>
           <input type="text" maxlength="120" value="${esc(s.label)}"
-            class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-300">
-          <button onclick="removeOption('${uid}')" title="Remove"
-            class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
+            class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+          <button onclick="removeOption('${uid}')" title="Remove option" aria-label="Remove option"
+            class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>`;
         list.appendChild(div);
@@ -1566,7 +2166,7 @@ async function clonePoll(e, pollId) {
 }
 
 async function deleteVote(name) {
-  if (!confirm(`Remove ${name}'s vote?`)) return;
+  if (!(await askConfirm(`This removes ${name}'s response from the poll.`, { title: 'Remove response?', okLabel: 'Remove' }))) return;
   try {
     const res = await fetch(`/api/polls/${currentPollId}/votes/${encodeURIComponent(name)}`, { method: 'DELETE' });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed');
@@ -1614,11 +2214,12 @@ function changeVote(pollId) {
   if (record && currentPoll) {
     const existing = currentPoll.votes.find(v => v.name.toLowerCase() === record.name.toLowerCase());
     if (existing) {
-      if (currentPoll.type === 'schedule') {
-        voteResponses = { ...existing.responses };
-      } else {
+      if (currentPoll.type === 'question') {
         // Question poll: stored as string ranks — convert back to integers
         Object.entries(existing.responses).forEach(([k, v]) => { voteResponses[k] = parseInt(v); });
+      } else {
+        // schedule / rsvp / availability: string values (yes/maybe/no)
+        voteResponses = { ...existing.responses };
       }
       prefillVoterName = record.name;
     }
@@ -1634,6 +2235,44 @@ function esc(str) {
   return String(str)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Custom confirm dialog (replaces window.confirm) ──────
+function askConfirm(message, { title = 'Are you sure?', okLabel = 'Confirm', danger = true } = {}) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('confirm-overlay');
+    const okBtn   = document.getElementById('confirm-ok');
+    const cancel  = document.getElementById('confirm-cancel');
+    const iconBox = document.getElementById('confirm-icon');
+    document.getElementById('confirm-title').textContent   = title;
+    document.getElementById('confirm-message').textContent = message;
+    okBtn.textContent = okLabel;
+    okBtn.className = 'flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all ' +
+      (danger ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700');
+    iconBox.className = 'w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ' +
+      (danger ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-600');
+
+    overlay.classList.remove('hidden');
+    overlay.classList.add('flex');
+    renderIcons();
+    okBtn.focus();
+
+    const done = (result) => {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      okBtn.onclick = cancel.onclick = overlay.onclick = null;
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    };
+    const onKey = e => {
+      if (e.key === 'Escape') done(false);
+      if (e.key === 'Enter')  done(true);
+    };
+    okBtn.onclick     = () => done(true);
+    cancel.onclick    = () => done(false);
+    overlay.onclick   = e => { if (e.target === overlay) done(false); };
+    document.addEventListener('keydown', onKey);
+  });
 }
 
 let toastTimer;

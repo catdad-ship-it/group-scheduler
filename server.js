@@ -114,7 +114,13 @@ app.get('/api/admin/polls', (req, res) => {
 // Create a new poll
 app.post('/api/polls', (req, res) => {
   const { title, creatorName, slots, type, deadline, expectedVoters } = req.body;
-  const pollType = type === 'question' ? 'question' : 'schedule';
+  const VALID_TYPES = ['schedule', 'question', 'rsvp', 'availability'];
+  const pollType = VALID_TYPES.includes(type) ? type : 'schedule';
+
+  // Which types use datetime slots vs. text-label slots
+  const DATETIME_TYPES = ['schedule', 'availability'];
+  const usesDatetime   = DATETIME_TYPES.includes(pollType);
+  const maxSlots       = pollType === 'availability' ? 400 : 30;
 
   if (!title || !creatorName || !Array.isArray(slots) || slots.length === 0) {
     return res.status(400).json({ error: 'Missing required fields.' });
@@ -125,12 +131,12 @@ app.post('/api/polls', (req, res) => {
   if (typeof creatorName !== 'string' || creatorName.trim().length > 100) {
     return res.status(400).json({ error: 'Name must be under 100 characters.' });
   }
-  if (slots.length > 30) {
-    return res.status(400).json({ error: 'Too many slots (max 30).' });
+  if (slots.length > maxSlots) {
+    return res.status(400).json({ error: `Too many slots (max ${maxSlots}).` });
   }
 
   // Validate slot payloads
-  if (pollType === 'schedule') {
+  if (usesDatetime) {
     for (const s of slots) {
       if (!Number.isFinite(Number(s.datetime))) {
         return res.status(400).json({ error: 'Invalid slot datetime.' });
@@ -177,9 +183,9 @@ app.post('/api/polls', (req, res) => {
     deadline: deadlineMs,
     expectedVoters: expectedVotersArr,
     confirmedSlot: null,
-    slots: pollType === 'question'
-      ? slots.map((s, i) => ({ id: `s${i}`, label: String(s.label).trim() }))
-      : slots.map((s, i) => ({ id: `s${i}`, datetime: Number(s.datetime) })),
+    slots: usesDatetime
+      ? slots.map((s, i) => ({ id: `s${i}`, datetime: Number(s.datetime) }))
+      : slots.map((s, i) => ({ id: `s${i}`, label: String(s.label).trim() })),
     votes: []
   };
 
@@ -219,13 +225,16 @@ app.post('/api/polls/:id/vote', (req, res) => {
   }
 
   // Sanitize responses: only accept valid slot IDs with valid values
-  const validSlotIds   = new Set(poll.slots.map(s => s.id));
-  const validSchedule  = new Set(['yes', 'maybe', 'no']);
+  const validSlotIds  = new Set(poll.slots.map(s => s.id));
+  const yesMaybeNo    = new Set(['yes', 'maybe', 'no']);
+  const yesNo         = new Set(['yes', 'no']);
   const sanitized = {};
   for (const [k, v] of Object.entries(responses)) {
     if (!validSlotIds.has(k)) continue;
-    if (poll.type === 'schedule') {
-      if (validSchedule.has(v)) sanitized[k] = v;
+    if (poll.type === 'schedule' || poll.type === 'rsvp') {
+      if (yesMaybeNo.has(v)) sanitized[k] = v;
+    } else if (poll.type === 'availability') {
+      if (yesNo.has(v)) sanitized[k] = v;
     } else {
       const rank = parseInt(v);
       if (Number.isInteger(rank) && rank >= 1 && rank <= poll.slots.length) sanitized[k] = String(rank);
