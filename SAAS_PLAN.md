@@ -60,13 +60,13 @@ Small stuff first so the real work is safe.
 
 Right now "admin" means Brady. It needs to mean "whoever created this poll." This is the biggest phase and the one that makes it a product. Do it together with Phase 2 — accounts need somewhere to live.
 
-- [ ] Add a `users` concept: id, email, createdAt, plan (default `free`).
-- [ ] Add `ownerId` to every poll.
-- [ ] Build magic-link login: enter email → emailed a one-time link → clicking it sets a signed session cookie.
-- [ ] Replace the single-password check. Every admin route (`list polls`, `confirm`, `unconfirm`, `patch title`, `delete poll`, `delete vote`) changes from "is this THE admin?" to "does the logged-in user own THIS poll?"
-- [ ] **Creating a poll requires an account.** Anonymous visitors cannot create polls — the create flow is gated behind login, and poll creation attaches the logged-in user as owner. (**Voting stays anonymous** — no login to respond to a poll.)
-- [ ] Admin poll list shows only the current user's polls.
-- [ ] Keep public voting exactly as-is — voters never log in.
+- [x] Add a `users` concept: id, email, createdAt, plan (default `free`).
+- [x] Add `ownerId` to every poll.
+- [x] Build magic-link login: enter email → emailed a one-time link → clicking it sets a signed session cookie.
+- [x] Replace the single-password check. Every admin route (`list polls`, `confirm`, `unconfirm`, `patch title`, `delete poll`, `delete vote`) changes from "is this THE admin?" to "does the logged-in user own THIS poll?"
+- [x] **Creating a poll requires an account.** Anonymous visitors cannot create polls — the create flow is gated behind login, and poll creation attaches the logged-in user as owner. (**Voting stays anonymous** — no login to respond to a poll.)
+- [x] Admin poll list shows only the current user's polls.
+- [x] Keep public voting exactly as-is — voters never log in.
 
 **Acceptance:** two different accounts can each create polls and only see/manage their own; a voter with a poll link can still vote without any login; Brady's old shared password no longer grants access to everything.
 
@@ -74,11 +74,11 @@ Right now "admin" means Brady. It needs to mean "whoever created this poll." Thi
 
 `polls.json` can't handle two people writing at once and won't survive Fly relocating the machine. This and Phase 1 are best shipped together.
 
-- [ ] Provision Fly Postgres and attach it to the app (commands below).
-- [ ] Schema: `users`, `polls`, `slots`, `votes` (votes and slots as real rows, not JSON blobs, so we can query them).
-- [ ] Write a one-time migration script that reads `polls.json` and inserts every existing poll/slot/vote. Assign existing polls to Brady's account.
-- [ ] Swap `loadDB()`/`saveDB()` for real queries. Delete the file-based path once migration is verified.
-- [ ] Move sessions to signed JWT cookies (drop the in-memory `Map`).
+- [x] Provision Fly Postgres and attach it to the app (commands below).
+- [x] Schema: `users`, `polls`, `slots`, `votes` (votes and slots as real rows, not JSON blobs, so we can query them).
+- [x] Write a one-time migration script that reads `polls.json` and inserts every existing poll/slot/vote. Assign existing polls to Brady's account.
+- [x] Swap `loadDB()`/`saveDB()` for real queries. Delete the file-based path once migration is verified.
+- [x] Move sessions to signed JWT cookies (drop the in-memory `Map`).
 
 **Acceptance:** all existing polls show up under Brady's account after migration; app survives a redeploy with sessions and data intact; two simultaneous votes don't clobber each other.
 
