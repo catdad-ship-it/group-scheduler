@@ -65,7 +65,7 @@ async function sendMagicLinkEmail(email, link) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      from: 'Huddle <onboarding@resend.dev>',
+      from: 'Huddle <login@huddlr.co>',
       to: email,
       subject: 'Your Huddle login link',
       html: `<p>Click the link below to log in to Huddle:</p><p><a href="${link}">${link}</a></p><p>This link expires in 15 minutes. If you didn't request it, you can ignore this email.</p>`
