@@ -2108,7 +2108,9 @@ function renderResults(poll, tz) {
       if (r === 'maybe') slotScores[s.id].maybe++;
     });
   });
-  const scoreOf = id => slotScores[id].yes * 2 + slotScores[id].maybe;
+  // "Best" = the slot the most people can attend (fewest hard "no" conflicts).
+  // Primary: availability (yes + maybe). Tiebreak: most definite "yes".
+  const scoreOf = id => (slotScores[id].yes + slotScores[id].maybe) * 1000 + slotScores[id].yes;
 
   const sortedByScore = [...poll.slots].sort((a, b) => scoreOf(b.id) - scoreOf(a.id));
   const bestScore = scoreOf(sortedByScore[0].id);
