@@ -49,10 +49,10 @@ Every gap between this and a SaaS comes from one assumption baked in everywhere:
 
 Small stuff first so the real work is safe.
 
-- [ ] Back up current data: copy `polls.json` to `polls-backup-<date>.json` (there's already one — make a fresh one).
-- [ ] Confirm `ADMIN_PASSWORD` is set as a real Fly secret, not the default, before any other changes ship.
-- [ ] Add a `.env.example` documenting every env var the app will need (DB URL, JWT secret, Resend key, Stripe keys).
-- [ ] Create a `dev` branch so `main` stays deployable.
+- [x] Back up current data: copy `polls.json` to `polls-backup-<date>.json` (there's already one — make a fresh one).
+- [x] Confirm `ADMIN_PASSWORD` is set as a real Fly secret, not the default, before any other changes ship.
+- [x] Add a `.env.example` documenting every env var the app will need (DB URL, JWT secret, Resend key, Stripe keys).
+- [x] Create a `dev` branch so `main` stays deployable.
 
 **Acceptance:** fresh backup exists, `dev` branch created, no behavior change in prod.
 
