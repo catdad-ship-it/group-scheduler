@@ -109,7 +109,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── DB HELPERS ──────────────────────────────────────────────────────────────
 
-function serializePoll(poll, slots, votes) {
+function serializePoll(poll, slots, votes, isOwner) {
   return {
     id: poll.id,
     type: poll.type,
@@ -120,6 +120,7 @@ function serializePoll(poll, slots, votes) {
     deadline: poll.deadline !== null ? Number(poll.deadline) : null,
     expectedVoters: poll.expected_voters,
     confirmedSlot: poll.confirmed_slot,
+    isOwner: !!isOwner,
     slots: slots.map(s => {
       const slot = { id: s.slot_key };
       if (s.datetime !== null) slot.datetime = Number(s.datetime);
@@ -136,7 +137,7 @@ function serializePoll(poll, slots, votes) {
   };
 }
 
-async function loadPollById(id) {
+async function loadPollById(id, viewerUserId) {
   const pollRes = await pool.query('SELECT * FROM polls WHERE id = $1', [id]);
   const poll = pollRes.rows[0];
   if (!poll) return null;
@@ -144,7 +145,8 @@ async function loadPollById(id) {
     pool.query('SELECT * FROM slots WHERE poll_id = $1 ORDER BY sort_order', [id]),
     pool.query('SELECT * FROM votes WHERE poll_id = $1 ORDER BY submitted_at', [id])
   ]);
-  return serializePoll(poll, slotsRes.rows, votesRes.rows);
+  const isOwner = viewerUserId != null && String(poll.owner_id) === String(viewerUserId);
+  return serializePoll(poll, slotsRes.rows, votesRes.rows, isOwner);
 }
 
 async function loadPollsByOwner(ownerId) {
@@ -155,7 +157,7 @@ async function loadPollsByOwner(ownerId) {
       pool.query('SELECT * FROM slots WHERE poll_id = $1 ORDER BY sort_order', [poll.id]),
       pool.query('SELECT * FROM votes WHERE poll_id = $1 ORDER BY submitted_at', [poll.id])
     ]);
-    polls.push(serializePoll(poll, slotsRes.rows, votesRes.rows));
+    polls.push(serializePoll(poll, slotsRes.rows, votesRes.rows, true));
   }
   return polls;
 }
@@ -352,7 +354,8 @@ app.post('/api/polls', async (req, res) => {
 
 // Get a poll by ID (public — voting page)
 app.get('/api/polls/:id', async (req, res) => {
-  const poll = await loadPollById(req.params.id);
+  const user = getSessionUser(req);
+  const poll = await loadPollById(req.params.id, user ? user.id : null);
   if (!poll) return res.status(404).json({ error: 'Poll not found.' });
   res.json(poll);
 });
