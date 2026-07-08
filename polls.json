@@ -26,5 +26,706 @@
         "submittedAt": "2026-06-17T15:21:56.421Z"
       }
     ]
+  },
+  "c5f1ea14": {
+    "id": "c5f1ea14",
+    "type": "availability",
+    "title": "Sample",
+    "creatorName": "Brady",
+    "createdAt": "2026-07-07T20:37:02.177Z",
+    "deadline": null,
+    "expectedVoters": [],
+    "confirmedSlot": null,
+    "slots": [
+      {
+        "id": "s0",
+        "datetime": 1783519200000
+      },
+      {
+        "id": "s1",
+        "datetime": 1783521000000
+      },
+      {
+        "id": "s2",
+        "datetime": 1783522800000
+      },
+      {
+        "id": "s3",
+        "datetime": 1783524600000
+      },
+      {
+        "id": "s4",
+        "datetime": 1783526400000
+      },
+      {
+        "id": "s5",
+        "datetime": 1783528200000
+      },
+      {
+        "id": "s6",
+        "datetime": 1783530000000
+      },
+      {
+        "id": "s7",
+        "datetime": 1783531800000
+      },
+      {
+        "id": "s8",
+        "datetime": 1783533600000
+      },
+      {
+        "id": "s9",
+        "datetime": 1783535400000
+      },
+      {
+        "id": "s10",
+        "datetime": 1783537200000
+      },
+      {
+        "id": "s11",
+        "datetime": 1783539000000
+      },
+      {
+        "id": "s12",
+        "datetime": 1783540800000
+      },
+      {
+        "id": "s13",
+        "datetime": 1783542600000
+      },
+      {
+        "id": "s14",
+        "datetime": 1783544400000
+      },
+      {
+        "id": "s15",
+        "datetime": 1783546200000
+      },
+      {
+        "id": "s16",
+        "datetime": 1783548000000
+      },
+      {
+        "id": "s17",
+        "datetime": 1783549800000
+      },
+      {
+        "id": "s18",
+        "datetime": 1783551600000
+      },
+      {
+        "id": "s19",
+        "datetime": 1783553400000
+      },
+      {
+        "id": "s20",
+        "datetime": 1783555200000
+      },
+      {
+        "id": "s21",
+        "datetime": 1783557000000
+      },
+      {
+        "id": "s22",
+        "datetime": 1783558800000
+      },
+      {
+        "id": "s23",
+        "datetime": 1783560600000
+      },
+      {
+        "id": "s24",
+        "datetime": 1783562400000
+      },
+      {
+        "id": "s25",
+        "datetime": 1783564200000
+      },
+      {
+        "id": "s26",
+        "datetime": 1783605600000
+      },
+      {
+        "id": "s27",
+        "datetime": 1783607400000
+      },
+      {
+        "id": "s28",
+        "datetime": 1783609200000
+      },
+      {
+        "id": "s29",
+        "datetime": 1783611000000
+      },
+      {
+        "id": "s30",
+        "datetime": 1783612800000
+      },
+      {
+        "id": "s31",
+        "datetime": 1783614600000
+      },
+      {
+        "id": "s32",
+        "datetime": 1783616400000
+      },
+      {
+        "id": "s33",
+        "datetime": 1783618200000
+      },
+      {
+        "id": "s34",
+        "datetime": 1783620000000
+      },
+      {
+        "id": "s35",
+        "datetime": 1783621800000
+      },
+      {
+        "id": "s36",
+        "datetime": 1783623600000
+      },
+      {
+        "id": "s37",
+        "datetime": 1783625400000
+      },
+      {
+        "id": "s38",
+        "datetime": 1783627200000
+      },
+      {
+        "id": "s39",
+        "datetime": 1783629000000
+      },
+      {
+        "id": "s40",
+        "datetime": 1783630800000
+      },
+      {
+        "id": "s41",
+        "datetime": 1783632600000
+      },
+      {
+        "id": "s42",
+        "datetime": 1783634400000
+      },
+      {
+        "id": "s43",
+        "datetime": 1783636200000
+      },
+      {
+        "id": "s44",
+        "datetime": 1783638000000
+      },
+      {
+        "id": "s45",
+        "datetime": 1783639800000
+      },
+      {
+        "id": "s46",
+        "datetime": 1783641600000
+      },
+      {
+        "id": "s47",
+        "datetime": 1783643400000
+      },
+      {
+        "id": "s48",
+        "datetime": 1783645200000
+      },
+      {
+        "id": "s49",
+        "datetime": 1783647000000
+      },
+      {
+        "id": "s50",
+        "datetime": 1783648800000
+      },
+      {
+        "id": "s51",
+        "datetime": 1783650600000
+      }
+    ],
+    "votes": [
+      {
+        "name": "John",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "yes",
+          "s1": "yes",
+          "s2": "yes",
+          "s3": "yes",
+          "s9": "yes",
+          "s10": "yes",
+          "s11": "yes",
+          "s12": "yes",
+          "s13": "yes",
+          "s14": "yes",
+          "s19": "yes",
+          "s20": "yes",
+          "s21": "yes",
+          "s22": "yes",
+          "s29": "yes",
+          "s30": "yes",
+          "s31": "yes",
+          "s32": "yes",
+          "s33": "yes",
+          "s39": "yes",
+          "s40": "yes",
+          "s41": "yes",
+          "s42": "yes",
+          "s43": "yes",
+          "s47": "yes",
+          "s48": "yes",
+          "s49": "yes"
+        },
+        "submittedAt": "2026-07-07T20:37:28.562Z"
+      },
+      {
+        "name": "Steve",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "yes",
+          "s1": "yes",
+          "s2": "yes",
+          "s3": "yes",
+          "s12": "yes",
+          "s13": "yes",
+          "s14": "yes",
+          "s15": "yes",
+          "s19": "yes",
+          "s20": "yes",
+          "s21": "yes",
+          "s22": "yes",
+          "s28": "yes",
+          "s29": "yes",
+          "s30": "yes",
+          "s31": "yes",
+          "s32": "yes",
+          "s35": "yes",
+          "s36": "yes",
+          "s37": "yes",
+          "s38": "yes",
+          "s39": "yes",
+          "s40": "yes",
+          "s43": "yes",
+          "s44": "yes",
+          "s45": "yes",
+          "s48": "yes",
+          "s49": "yes"
+        },
+        "submittedAt": "2026-07-07T20:37:51.952Z"
+      },
+      {
+        "name": "Bob",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "yes",
+          "s1": "yes",
+          "s2": "yes",
+          "s3": "yes",
+          "s4": "yes",
+          "s5": "yes",
+          "s18": "yes",
+          "s19": "yes",
+          "s21": "yes",
+          "s25": "yes",
+          "s29": "yes",
+          "s30": "yes",
+          "s31": "yes",
+          "s32": "yes",
+          "s33": "yes",
+          "s34": "yes",
+          "s36": "yes",
+          "s37": "yes",
+          "s38": "yes",
+          "s39": "yes",
+          "s40": "yes",
+          "s41": "yes",
+          "s43": "yes",
+          "s44": "yes",
+          "s45": "yes",
+          "s46": "yes",
+          "s47": "yes",
+          "s48": "yes",
+          "s49": "yes"
+        },
+        "submittedAt": "2026-07-07T20:38:37.322Z"
+      }
+    ]
+  },
+  "d393f957": {
+    "id": "d393f957",
+    "type": "schedule",
+    "title": "Sampel ampel",
+    "creatorName": "Brady",
+    "createdAt": "2026-07-07T20:40:54.815Z",
+    "deadline": null,
+    "expectedVoters": [],
+    "confirmedSlot": null,
+    "slots": [
+      {
+        "id": "s0",
+        "datetime": 1783530000000
+      },
+      {
+        "id": "s1",
+        "datetime": 1783540800000
+      },
+      {
+        "id": "s2",
+        "datetime": 1783548000000
+      },
+      {
+        "id": "s3",
+        "datetime": 1783548240000
+      }
+    ],
+    "votes": [
+      {
+        "name": "John",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "yes",
+          "s1": "maybe",
+          "s2": "yes",
+          "s3": "yes"
+        },
+        "submittedAt": "2026-07-07T20:41:05.436Z"
+      },
+      {
+        "name": "Bobb",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "yes",
+          "s1": "no",
+          "s2": "no",
+          "s3": "maybe"
+        },
+        "submittedAt": "2026-07-07T20:41:29.184Z"
+      }
+    ]
+  },
+  "082b744f": {
+    "id": "082b744f",
+    "type": "availability",
+    "title": "Sample 2",
+    "creatorName": "Brady",
+    "createdAt": "2026-07-07T20:46:53.320Z",
+    "deadline": null,
+    "expectedVoters": [],
+    "confirmedSlot": null,
+    "slots": [
+      {
+        "id": "s0",
+        "datetime": 1783519200000
+      },
+      {
+        "id": "s1",
+        "datetime": 1783522800000
+      },
+      {
+        "id": "s2",
+        "datetime": 1783526400000
+      },
+      {
+        "id": "s3",
+        "datetime": 1783530000000
+      },
+      {
+        "id": "s4",
+        "datetime": 1783533600000
+      },
+      {
+        "id": "s5",
+        "datetime": 1783537200000
+      },
+      {
+        "id": "s6",
+        "datetime": 1783540800000
+      },
+      {
+        "id": "s7",
+        "datetime": 1783544400000
+      },
+      {
+        "id": "s8",
+        "datetime": 1783605600000
+      },
+      {
+        "id": "s9",
+        "datetime": 1783609200000
+      },
+      {
+        "id": "s10",
+        "datetime": 1783612800000
+      },
+      {
+        "id": "s11",
+        "datetime": 1783616400000
+      },
+      {
+        "id": "s12",
+        "datetime": 1783620000000
+      },
+      {
+        "id": "s13",
+        "datetime": 1783623600000
+      },
+      {
+        "id": "s14",
+        "datetime": 1783627200000
+      },
+      {
+        "id": "s15",
+        "datetime": 1783630800000
+      },
+      {
+        "id": "s16",
+        "datetime": 1783692000000
+      },
+      {
+        "id": "s17",
+        "datetime": 1783695600000
+      },
+      {
+        "id": "s18",
+        "datetime": 1783699200000
+      },
+      {
+        "id": "s19",
+        "datetime": 1783702800000
+      },
+      {
+        "id": "s20",
+        "datetime": 1783706400000
+      },
+      {
+        "id": "s21",
+        "datetime": 1783710000000
+      },
+      {
+        "id": "s22",
+        "datetime": 1783713600000
+      },
+      {
+        "id": "s23",
+        "datetime": 1783717200000
+      }
+    ],
+    "votes": [
+      {
+        "name": "Brady",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "yes",
+          "s1": "yes",
+          "s2": "yes",
+          "s3": "yes",
+          "s4": "yes",
+          "s11": "yes",
+          "s12": "yes",
+          "s13": "yes",
+          "s17": "yes",
+          "s18": "yes",
+          "s19": "yes"
+        },
+        "submittedAt": "2026-07-07T20:47:11.029Z"
+      },
+      {
+        "name": "Bob",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "yes",
+          "s1": "yes",
+          "s9": "yes",
+          "s10": "yes",
+          "s11": "yes",
+          "s12": "yes",
+          "s13": "yes",
+          "s14": "yes",
+          "s21": "yes",
+          "s22": "yes",
+          "s23": "yes"
+        },
+        "submittedAt": "2026-07-07T20:47:27.321Z"
+      },
+      {
+        "name": "Steve",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "yes",
+          "s1": "yes",
+          "s2": "yes",
+          "s4": "yes",
+          "s5": "yes",
+          "s6": "yes",
+          "s7": "yes",
+          "s12": "yes",
+          "s13": "yes",
+          "s17": "yes",
+          "s18": "yes",
+          "s19": "yes"
+        },
+        "submittedAt": "2026-07-07T20:47:57.402Z"
+      }
+    ]
+  },
+  "f31b4acb": {
+    "id": "f31b4acb",
+    "type": "schedule",
+    "title": "sample",
+    "creatorName": "n/a",
+    "createdAt": "2026-07-08T00:52:49.836Z",
+    "deadline": null,
+    "expectedVoters": [],
+    "confirmedSlot": null,
+    "slots": [
+      {
+        "id": "s0",
+        "datetime": 1783526400000,
+        "endDatetime": 1783533600000
+      },
+      {
+        "id": "s1",
+        "datetime": 1783533600000,
+        "endDatetime": 1783537200000
+      },
+      {
+        "id": "s2",
+        "datetime": 1783537200000,
+        "endDatetime": 1783540800000
+      },
+      {
+        "id": "s3",
+        "datetime": 1783540800000,
+        "endDatetime": 1783544400000
+      },
+      {
+        "id": "s4",
+        "datetime": 1783616400000,
+        "endDatetime": 1783620000000
+      },
+      {
+        "id": "s5",
+        "datetime": 1783620000000,
+        "endDatetime": 1783623600000
+      },
+      {
+        "id": "s6",
+        "datetime": 1783623600000,
+        "endDatetime": 1783627200000
+      }
+    ],
+    "votes": [
+      {
+        "name": "niemanbrady@gmail.com",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "maybe",
+          "s1": "no",
+          "s2": "maybe",
+          "s3": "yes",
+          "s4": "yes",
+          "s5": "yes",
+          "s6": "yes"
+        },
+        "submittedAt": "2026-07-08T00:53:12.234Z"
+      }
+    ]
+  },
+  "75f9c7e6": {
+    "id": "75f9c7e6",
+    "type": "schedule",
+    "title": "Sample",
+    "creatorName": "",
+    "description": "This is the description and details",
+    "createdAt": "2026-07-08T01:06:38.104Z",
+    "deadline": null,
+    "expectedVoters": [
+      "one",
+      "two",
+      "three and four"
+    ],
+    "confirmedSlot": null,
+    "slots": [
+      {
+        "id": "s0",
+        "datetime": 1783530000000,
+        "endDatetime": 1783533600000
+      },
+      {
+        "id": "s1",
+        "datetime": 1783533600000,
+        "endDatetime": 1783537200000
+      },
+      {
+        "id": "s2",
+        "datetime": 1783537200000,
+        "endDatetime": 1783540800000
+      },
+      {
+        "id": "s3",
+        "datetime": 1783540800000,
+        "endDatetime": 1783544400000
+      },
+      {
+        "id": "s4",
+        "datetime": 1783544400000,
+        "endDatetime": 1783548000000
+      },
+      {
+        "id": "s5",
+        "datetime": 1783548000000,
+        "endDatetime": 1783551600000
+      }
+    ],
+    "votes": []
+  },
+  "2e6d419d": {
+    "id": "2e6d419d",
+    "type": "schedule",
+    "title": "sample",
+    "creatorName": "",
+    "description": "described",
+    "createdAt": "2026-07-08T01:27:06.485Z",
+    "deadline": null,
+    "expectedVoters": [],
+    "confirmedSlot": null,
+    "slots": [
+      {
+        "id": "s0",
+        "datetime": 1783530000000,
+        "endDatetime": 1783533600000
+      },
+      {
+        "id": "s1",
+        "datetime": 1783533600000,
+        "endDatetime": 1783537200000
+      },
+      {
+        "id": "s2",
+        "datetime": 1783537200000,
+        "endDatetime": 1783540800000
+      },
+      {
+        "id": "s3",
+        "datetime": 1783540800000,
+        "endDatetime": 1783544400000
+      }
+    ],
+    "votes": [
+      {
+        "name": "niemanbrady@gmail.com",
+        "timezone": "America/Chicago",
+        "responses": {
+          "s0": "yes",
+          "s1": "maybe",
+          "s2": "yes",
+          "s3": "yes"
+        },
+        "submittedAt": "2026-07-08T01:27:17.437Z"
+      }
+    ]
   }
 }

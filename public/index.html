@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Brady's Little Helper</title>
+  <title>Huddle</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#2563eb">
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -96,8 +100,12 @@
 <nav class="sticky top-0 z-50 bg-white border-b border-gray-100">
   <div class="max-w-2xl mx-auto px-5 h-14 flex items-center justify-between">
     <button onclick="goHome()" class="flex items-center gap-2 font-bold text-blue-600 hover:text-blue-700 transition-colors text-sm">
-      <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
-      Brady's Little Helper
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="4" rx="2"/>
+        <rect x="3" y="10" width="13" height="4" rx="2" fill-opacity="0.55"/>
+        <rect x="3" y="15" width="9" height="4" rx="2" fill-opacity="0.55"/>
+      </svg>
+      Huddle
     </button>
     <div class="flex items-center gap-2">
       <button id="nav-mypolls-btn" onclick="goToDashboard()" style="display:none" aria-label="My Polls"
@@ -1079,7 +1087,7 @@ async function createPoll() {
 async function copyLink() {
   const val = document.getElementById('share-link').value;
   if (navigator.share) {
-    try { await navigator.share({ title: "Brady's Little Helper", url: val }); return; } catch {}
+    try { await navigator.share({ title: "Huddle", url: val }); return; } catch {}
   }
   navigator.clipboard?.writeText(val).then(() => showToast('Link copied!')).catch(() => {
     const inp = document.getElementById('share-link');
@@ -1596,7 +1604,7 @@ function renderManageResponses(poll) {
 function sharePoll() {
   const url = `${location.origin}/?poll=${currentPollId}`;
   if (navigator.share) {
-    navigator.share({ title: currentPoll?.title || "Brady's Little Helper", url }).catch(() => {});
+    navigator.share({ title: currentPoll?.title || "Huddle", url }).catch(() => {});
   } else {
     navigator.clipboard?.writeText(url)
       .then(() => showToast('Link copied!'))
@@ -2295,11 +2303,11 @@ function downloadICS(poll) {
   const end   = new Date(slot.endDatetime || slot.datetime + 60 * 60 * 1000); // slot end, or default 1 hour
   const fmt   = d => d.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
   const ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', "PRODID:-//Brady's Little Helper//EN",
+    'BEGIN:VCALENDAR', 'VERSION:2.0', "PRODID:-//Huddle//EN",
     'BEGIN:VEVENT',
     `DTSTART:${fmt(start)}`, `DTEND:${fmt(end)}`,
     `SUMMARY:${poll.title}`,
-    `DESCRIPTION:Scheduled via Brady's Little Helper`,
+    `DESCRIPTION:Scheduled via Huddle`,
     `UID:${poll.id}-${slot.id}@bradyslittlehelper`,
     'END:VEVENT', 'END:VCALENDAR'
   ].join('\r\n');
