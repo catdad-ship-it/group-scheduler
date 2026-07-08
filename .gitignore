@@ -1,3 +1,4 @@
 cookies.txt
 polls-backup-*.json
 group-scheduler/
+.claude/settings.local.json

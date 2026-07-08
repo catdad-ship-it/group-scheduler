@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "huddle-dev",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "DATABASE_URL=postgres://localhost:5432/group_scheduler_dev",
+        "JWT_SECRET=dev-local-secret",
+        "PORT=3010",
+        "node",
+        "server.js"
+      ],
+      "port": 3010
+    }
+  ]
+}

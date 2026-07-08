@@ -116,7 +116,7 @@
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
         <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> My Polls</span>
       </button>
-      <button id="nav-login-btn" onclick="showView('login')" style="display:none" aria-label="Log in"
+      <button id="nav-login-btn" onclick="showLoginView()" style="display:none" aria-label="Log in"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
         <i data-lucide="log-in" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> Log In</span>
       </button>
@@ -441,26 +441,36 @@
 ═════════════════════════════════════════════════════ -->
 <div id="view-login" class="view">
   <div class="max-w-sm mx-auto px-5 pt-12 pb-24">
-    <div class="text-center mb-8">
-      <div class="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-        <i data-lucide="lock" class="w-5 h-5 text-gray-500"></i>
+    <div id="login-request-state">
+      <div class="text-center mb-8">
+        <div class="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <i data-lucide="mail" class="w-5 h-5 text-gray-500"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900">Log In</h1>
+        <p class="text-sm text-gray-500 mt-1" id="login-subtitle">Enter your email and we'll send you a login link</p>
       </div>
-      <h1 class="text-2xl font-bold text-gray-900">My Polls</h1>
-      <p class="text-sm text-gray-500 mt-1">Enter your password to see all your polls</p>
+
+      <div class="mb-1">
+        <label for="login-email" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
+        <input type="email" id="login-email" placeholder="you@example.com"
+          onkeydown="if(event.key==='Enter') submitMagicLink()"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm transition-all placeholder-gray-400">
+      </div>
+      <p id="login-error" class="text-red-500 text-sm mb-4 min-h-5"></p>
+
+      <button id="login-btn" onclick="submitMagicLink()"
+        class="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60">
+        Send me a login link <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>
     </div>
 
-    <div class="mb-1">
-      <label for="login-password" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Password</label>
-      <input type="password" id="login-password" placeholder="Enter password"
-        onkeydown="if(event.key==='Enter') submitLogin()"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm transition-all placeholder-gray-400">
+    <div id="login-sent-state" class="text-center" style="display:none">
+      <div class="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <i data-lucide="mail-check" class="w-5 h-5 text-green-600"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900">Check your email</h1>
+      <p class="text-sm text-gray-500 mt-1">We sent a login link to <span id="login-sent-email" class="font-semibold text-gray-700"></span></p>
     </div>
-    <p id="login-error" class="text-red-500 text-sm mb-4 min-h-5"></p>
-
-    <button id="login-btn" onclick="submitLogin()"
-      class="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60">
-      Log In <i data-lucide="arrow-right" class="w-4 h-4"></i>
-    </button>
   </div>
 </div>
 
@@ -524,30 +534,37 @@ function updateNavButtons() {
   document.getElementById('nav-logout-btn').style.display  = isAdmin ? 'inline-flex' : 'none';
 }
 
-async function submitLogin() {
-  const password = document.getElementById('login-password').value;
-  const errEl    = document.getElementById('login-error');
-  const btn      = document.getElementById('login-btn');
+function showLoginView(message) {
+  document.getElementById('login-request-state').style.display = '';
+  document.getElementById('login-sent-state').style.display = 'none';
+  document.getElementById('login-subtitle').textContent = message || "Enter your email and we'll send you a login link";
+  showView('login');
+}
+
+async function submitMagicLink() {
+  const email = document.getElementById('login-email').value.trim();
+  const errEl = document.getElementById('login-error');
+  const btn   = document.getElementById('login-btn');
   errEl.textContent = '';
-  btn.disabled = true; btn.textContent = 'Logging in…';
+  btn.disabled = true; btn.textContent = 'Sending…';
 
   try {
-    const res = await fetch('/api/login', {
+    const res = await fetch('/api/auth/magic-link', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password })
+      body: JSON.stringify({ email })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Login failed.');
-    isAdmin = true;
-    updateNavButtons();
-    document.getElementById('login-password').value = '';
-    goToDashboard();
+    if (!res.ok) throw new Error(data.error || 'Could not send login link.');
+    document.getElementById('login-sent-email').textContent = email;
+    document.getElementById('login-request-state').style.display = 'none';
+    document.getElementById('login-sent-state').style.display = '';
+    renderIcons();
   } catch (e) {
     errEl.textContent = e.message;
   } finally {
     btn.disabled = false;
-    btn.innerHTML = 'Log In <i data-lucide="arrow-right" class="w-4 h-4"></i>';
+    btn.innerHTML = 'Send me a login link <i data-lucide="arrow-right" class="w-4 h-4"></i>';
     renderIcons();
   }
 }
@@ -573,7 +590,7 @@ async function loadDashboard() {
     if (res.status === 401) {
       isAdmin = false;
       updateNavButtons();
-      showView('login');
+      showLoginView();
       return;
     }
     const polls = await res.json();
@@ -650,13 +667,20 @@ async function init() {
     const btn = document.getElementById('copy-link-btn');
     if (btn) { btn.innerHTML = '<i data-lucide="share-2" class="w-4 h-4"></i> Share'; renderIcons(); }
   }
-  const path   = window.location.pathname;
-  const params = new URLSearchParams(window.location.search);
-  const pollId = params.get('poll');
+  const path      = window.location.pathname;
+  const params    = new URLSearchParams(window.location.search);
+  const pollId    = params.get('poll');
+  const loggedIn  = params.get('loggedIn');
+  const authError = params.get('authError');
 
-  if (path === '/dashboard') {
+  if (loggedIn || authError) history.replaceState({}, '', path === '/dashboard' ? '/dashboard' : '/');
+  if (loggedIn) showToast('Logged in!');
+
+  if (authError && !isAdmin) {
+    showLoginView('That login link expired or was already used — enter your email for a new one.');
+  } else if (path === '/dashboard') {
     if (isAdmin) { showView('dashboard'); loadDashboard(); }
-    else         { showView('login'); }
+    else         { showLoginView(); }
   } else if (pollId) {
     currentPollId = pollId;
     showView('poll');
@@ -674,6 +698,10 @@ function showView(name) {
 }
 
 function startCreate(type) {
+  if (!isAdmin) {
+    showLoginView('Log in to create a poll — enter your email and we\'ll send you a link');
+    return;
+  }
   createPollType = type || 'schedule';
   initCreateForm();
   showView('create');
@@ -1080,6 +1108,12 @@ async function createPoll() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, description, slots, type: createPollType, deadline, expectedVoters })
     });
+    if (res.status === 401) {
+      isAdmin = false;
+      updateNavButtons();
+      showLoginView('Your session expired — log in again to create this poll');
+      return;
+    }
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to create poll.');
 
