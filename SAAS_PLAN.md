@@ -19,14 +19,21 @@ Do one phase per session. Don't let it jump ahead — each phase depends on the 
 
 ---
 
-## Current state (what we're starting from)
+## Current state (as of Phase 0–2 + follow-ups being done)
 
-- **Stack:** Node + Express, deployed on Fly.io. Frontend is static files in `public/`.
-- **Auth:** one shared admin password (`ADMIN_PASSWORD`, defaults to `brady`). "Admin" = Brady, full stop.
-- **Storage:** all polls in a flat `polls.json` file. Sessions in an in-memory `Map` — wiped on every restart/redeploy.
+- **Stack:** Node + Express, deployed on Fly.io at `huddlr.co` (custom domain; the old `group-scheduler.fly.dev` URL still works too).
+- **Auth:** magic-link email login (Resend, sending from `login@huddlr.co`). Sessions are signed JWT cookies, 90 days, survive restarts/redeploys.
+- **Storage:** Postgres (`users`, `polls`, `slots`, `votes` as real rows). The old `polls.json` file/volume is kept around untouched as a cold fallback, not read by the app anymore.
+- **Multi-tenancy:** every poll has an owner; admin actions (confirm, edit, delete) check "do you own this poll," not a shared password. Voting stays anonymous — no login required to respond to a poll.
 - **Poll types:** schedule, question, rsvp, availability.
 
-Every gap between this and a SaaS comes from one assumption baked in everywhere: **one owner, one machine.** The plan below unwinds that.
+<details>
+<summary>Original starting state (pre-Phase 0, for history)</summary>
+
+- One shared admin password (`ADMIN_PASSWORD`, defaulted to `brady`). "Admin" = Brady, full stop.
+- All polls in a flat `polls.json` file. Sessions in an in-memory `Map`, wiped on every restart/redeploy.
+- Every gap between that and a SaaS came from one assumption baked in everywhere: **one owner, one machine.** Phases 0–2 unwound that.
+</details>
 
 ## Guiding principles
 
@@ -81,6 +88,14 @@ Right now "admin" means Brady. It needs to mean "whoever created this poll." Thi
 - [x] Move sessions to signed JWT cookies (drop the in-memory `Map`).
 
 **Acceptance:** all existing polls show up under Brady's account after migration; app survives a redeploy with sessions and data intact; two simultaneous votes don't clobber each other.
+
+## Post-Phase 2 follow-ups (done)
+
+Small things that came up right after Phase 1+2 shipped, done before moving on to Phase 3:
+
+- [x] Registered `huddlr.co` and moved the app to it (Fly custom domain + cert). The old `group-scheduler.fly.dev` link still works too — nothing broke for existing shared poll links.
+- [x] Verified `huddlr.co` in Resend and switched magic-link emails to send from `login@huddlr.co`, replacing the sandbox sender that could only email Brady's own address. Real signup emails now actually deliver to anyone.
+- [x] Extended the login session from 30 to 90 days, so magic-link email is needed less often. (Considered adding password login as an alternative — decided against it for now: it would bring back password-hashing and brute-force-protection responsibilities that magic-link was chosen specifically to avoid.)
 
 ## Phase 3 — Billing (Stripe)
 
