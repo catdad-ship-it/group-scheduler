@@ -400,7 +400,7 @@
     <p id="create-error" class="text-red-500 text-sm mt-4 min-h-5"></p>
 
     <div class="flex gap-3 mt-6">
-      <button onclick="goHome()"
+      <button onclick="cancelCreateOrEdit()"
         class="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all">
         Cancel
       </button>
@@ -556,6 +556,7 @@ let prefillVoterName  = null;
 let resultsSortByScore = true;
 let resultsViewMode    = 'list'; // 'list' | 'grid' (schedule results)
 let pollViewMode       = 'full'; // 'full' | 'summary' — summary is the read-only view opened from My Polls
+let editingPollId      = null; // set while the create view is being used to edit an existing poll
 
 // ────────────────────────────────────────────────────
 // AUTH / NAV STATE
@@ -745,9 +746,12 @@ function startCreate(type) {
     showLoginView('Log in to create a poll — enter your email and we\'ll send you a link');
     return;
   }
+  editingPollId = null;
   createPollType = type || 'schedule';
   initCreateForm();
+  document.getElementById('create-btn').innerHTML = 'Create Poll <i data-lucide="arrow-right" class="w-4 h-4"></i>';
   showView('create');
+  renderIcons();
 }
 
 function goHome() {
@@ -1142,34 +1146,60 @@ async function createPoll() {
   const evInput = document.getElementById('poll-expected-voters')?.value.trim();
   const expectedVoters = evInput ? evInput.split(',').map(n => n.trim()).filter(Boolean) : [];
 
+  const isEditing = !!editingPollId;
+
+  if (isEditing && currentPoll?.votes?.length > 0) {
+    const ok = await askConfirm(
+      'Editing time options may affect existing responses tied to options that no longer match.',
+      { title: 'Save changes?', okLabel: 'Save changes', danger: false }
+    );
+    if (!ok) return;
+  }
+
   const btn = document.getElementById('create-btn');
-  btn.disabled = true; btn.textContent = 'Creating…';
+  btn.disabled = true; btn.textContent = isEditing ? 'Saving…' : 'Creating…';
 
   try {
-    const res  = await fetch('/api/polls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, slots, type: createPollType, deadline, expectedVoters })
-    });
+    const res = isEditing
+      ? await fetch(`/api/polls/${editingPollId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, description, slots, deadline, expectedVoters })
+        })
+      : await fetch('/api/polls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, description, slots, type: createPollType, deadline, expectedVoters })
+        });
     if (res.status === 401) {
       isAdmin = false;
       updateNavButtons();
-      showLoginView('Your session expired — log in again to create this poll');
+      showLoginView(isEditing ? 'Your session expired — log in again to save changes' : 'Your session expired — log in again to create this poll');
       return;
     }
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to create poll.');
+    if (!res.ok) throw new Error(data.error || (isEditing ? 'Failed to save changes.' : 'Failed to create poll.'));
 
-    currentPollId = data.id;
-    const pollUrl = `${location.origin}/?poll=${data.id}`;
-    document.getElementById('share-link').value = pollUrl;
-    document.getElementById('qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(pollUrl)}`;
-    showView('created');
+    if (isEditing) {
+      const id = editingPollId;
+      editingPollId = null;
+      showToast('Poll updated!');
+      currentPollId = id;
+      history.pushState({}, '', `/?poll=${id}`);
+      showView('poll');
+      await loadPoll(id, { summary: true });
+    } else {
+      currentPollId = data.id;
+      const pollUrl = `${location.origin}/?poll=${data.id}`;
+      document.getElementById('share-link').value = pollUrl;
+      document.getElementById('qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(pollUrl)}`;
+      showView('created');
+    }
   } catch (e) {
     errEl.textContent = e.message;
   } finally {
     btn.disabled = false;
-    btn.innerHTML = 'Create Poll <i data-lucide="arrow-right" class="w-4 h-4"></i>';
+    btn.innerHTML = isEditing ? 'Save Changes <i data-lucide="arrow-right" class="w-4 h-4"></i>' : 'Create Poll <i data-lucide="arrow-right" class="w-4 h-4"></i>';
     renderIcons();
   }
 }
@@ -1262,11 +1292,63 @@ function renderRsvpPoll() {
     ${renderWhoHasntVoted(poll)}
     ${summaryMode ? '' : renderManageResponses(poll)}`;
   renderIcons();
-  if (!summaryMode && prefillVoterName) {
-    const el = document.getElementById('vote-name');
-    if (el) el.value = prefillVoterName;
-    prefillVoterName = null;
+  if (!summaryMode) applyPrefillVoterName();
+}
+
+// ────────────────────────────────────────────────────
+// VOTER NAME FIELD (shared across all 4 poll-type vote forms)
+// ────────────────────────────────────────────────────
+function renderVoterNameField(poll) {
+  const voters = poll.expectedVoters || [];
+  if (voters.length === 0) {
+    return `
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
+      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+    </div>`;
   }
+  const options = voters.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  return `
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
+      <select id="vote-name-select" onchange="onVoterNameSelect(this.value)"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all mb-2">
+        <option value="">Choose your name…</option>
+        ${options}
+        <option value="__other__">Someone else (not listed)</option>
+      </select>
+      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60" style="display:none"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+    </div>`;
+}
+
+function onVoterNameSelect(value) {
+  const input = document.getElementById('vote-name');
+  if (!input) return;
+  if (value === '__other__') {
+    input.style.display = '';
+    input.value = '';
+    input.focus();
+  } else {
+    input.style.display = 'none';
+    input.value = value;
+  }
+}
+
+// Reconciles the "select yourself" dropdown (if present) with a prefilled name —
+// used when re-opening a vote you already submitted. Consumes prefillVoterName.
+function applyPrefillVoterName() {
+  if (!prefillVoterName) return;
+  const input  = document.getElementById('vote-name');
+  const select = document.getElementById('vote-name-select');
+  if (input) input.value = prefillVoterName;
+  if (select) {
+    const match = [...select.options].find(o => o.value.toLowerCase() === prefillVoterName.toLowerCase());
+    if (match) { select.value = match.value; if (input) input.style.display = 'none'; }
+    else { select.value = '__other__'; if (input) input.style.display = ''; }
+  }
+  prefillVoterName = null;
 }
 
 function renderRsvpVoteForm(poll) {
@@ -1286,11 +1368,7 @@ function renderRsvpVoteForm(poll) {
   return `
     <h2 class="font-bold text-gray-900 mb-1">Are you in?</h2>
     ${detail}
-    <div class="mb-4">
-      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
-      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
-    </div>
+    ${renderVoterNameField(poll)}
     <div class="flex gap-2 mb-4" id="rsvp-btns">${mk('yes','Yes','check')}${mk('maybe','Maybe','help-circle')}${mk('no','No','x')}</div>
     <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
     <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
@@ -1432,11 +1510,7 @@ function renderAvailabilityPoll() {
     ${summaryMode ? '' : renderManageResponses(poll)}`;
   renderIcons();
   if (!summaryMode) attachAvailPaint();
-  if (!summaryMode && prefillVoterName) {
-    const el = document.getElementById('vote-name');
-    if (el) el.value = prefillVoterName;
-    prefillVoterName = null;
-  }
+  if (!summaryMode) applyPrefillVoterName();
 }
 
 function gridColsStyle(n) {
@@ -1467,11 +1541,7 @@ function renderAvailabilityVoteForm(poll, tz) {
   return `
     <h2 class="font-bold text-gray-900 mb-1">Mark when you're free</h2>
     <p class="text-xs text-gray-500 mb-4">Drag across the grid to paint your available times. Times shown in ${esc(tz)}.</p>
-    <div class="mb-4">
-      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
-      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
-    </div>
+    ${renderVoterNameField(poll)}
     <div class="overflow-x-auto pb-2 -mx-1 px-1">
       <div id="avail-grid" style="${gridColsStyle(dates.length)}touch-action:none;">
         ${headerCells}
@@ -1649,17 +1719,12 @@ function renderPollHeader(poll, deadlineLine) {
 function renderPollModeControl(poll, summaryMode) {
   if (!poll.isOwner) return '';
   return summaryMode
-    ? `<button onclick="enterPollEditMode()" class="flex items-center gap-2 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-4 py-2.5 rounded-xl transition-all mb-6">
+    ? `<button onclick="startEditPoll(currentPoll)" class="flex items-center gap-2 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-4 py-2.5 rounded-xl transition-all mb-6">
         <i data-lucide="pencil" class="w-4 h-4"></i> Edit Poll
        </button>`
     : `<button onclick="backToPollSummary()" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-all mb-4">
         <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back to summary
        </button>`;
-}
-
-function enterPollEditMode() {
-  pollViewMode = 'full';
-  renderPoll();
 }
 
 function backToPollSummary() {
@@ -1818,11 +1883,7 @@ function renderQuestionPoll() {
     ${renderWhoHasntVoted(poll)}
     ${summaryMode ? '' : renderManageResponses(poll)}`;
   renderIcons();
-  if (!summaryMode && prefillVoterName) {
-    const el = document.getElementById('vote-name');
-    if (el) el.value = prefillVoterName;
-    prefillVoterName = null;
-  }
+  if (!summaryMode) applyPrefillVoterName();
 }
 
 function renderQuestionVoteForm(poll) {
@@ -1843,11 +1904,7 @@ function renderQuestionVoteForm(poll) {
   return `
     <h2 class="font-bold text-gray-900 mb-1">Cast Your Vote</h2>
     <p class="text-xs text-gray-500 mb-4">Tap options in order of preference — 1st pick, 2nd, etc. Tap again to remove.</p>
-    <div class="mb-4">
-      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
-      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
-    </div>
+    ${renderVoterNameField(poll)}
     <div class="space-y-2 mb-4" id="rc-options">${optionsHTML}</div>
     <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
     <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
@@ -2050,11 +2107,7 @@ function renderSchedulePoll() {
     ${renderWhoHasntVoted(poll)}
     ${summaryMode ? '' : renderManageResponses(poll)}`;
   renderIcons();
-  if (!summaryMode && prefillVoterName) {
-    const el = document.getElementById('vote-name');
-    if (el) el.value = prefillVoterName;
-    prefillVoterName = null;
-  }
+  if (!summaryMode) applyPrefillVoterName();
 }
 
 // ────────────────────────────────────────────────────
@@ -2107,11 +2160,7 @@ function renderVoteForm(poll, tz) {
 
   return `
     <h2 class="font-bold text-gray-900 mb-4">Cast Your Vote</h2>
-    <div class="mb-3">
-      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
-      <input type="text" id="vote-name" placeholder="Enter your name" maxlength="60"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
-    </div>
+    ${renderVoterNameField(poll)}
     <div class="mb-4">
       <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Timezone</label>
       ${tzSelectHTML('vote-tz', tz)}
@@ -2493,74 +2542,116 @@ async function deletePoll(e, pollId) {
   } catch (err) { showToast('Error: ' + err.message); }
 }
 
+// Rebuilds the create-form's slot-builder state (scheduleDays / avail controls /
+// options-list) from an existing poll's slots. Shared by clonePoll() and startEditPoll().
+function populateSlotBuilderFrom(poll) {
+  if (poll.type === 'schedule') {
+    const p = n => String(n).padStart(2,'0');
+    const byDate = {};
+    scheduleDays = [];
+    poll.slots.forEach(s => {
+      const d = new Date(s.datetime);
+      const key = dateStrFromDate(d);
+      if (!byDate[key]) { byDate[key] = { id: newDayId(), date: key, times: [] }; scheduleDays.push(byDate[key]); }
+      const startStr = `${p(d.getHours())}:${p(d.getMinutes())}`;
+      let endStr;
+      if (s.endDatetime) { const e = new Date(s.endDatetime); endStr = `${p(e.getHours())}:${p(e.getMinutes())}`; }
+      else endStr = addHour(startStr);
+      byDate[key].times.push({ id: newTimeId(), start: startStr, end: endStr });
+    });
+    if (!scheduleDays.length) initScheduleDays(); else renderScheduleDays();
+  } else if (poll.type === 'rsvp') {
+    // RSVP has no options to rebuild.
+  } else if (poll.type === 'availability') {
+    const tz = getUserTimezone();
+    const { dates, times } = availStructure(poll, tz);
+    document.getElementById('avail-dates-list').innerHTML = '';
+    dates.forEach(d => {
+      const [y, m, day] = d.key.split('-').map(Number);
+      addAvailDate(new Date(y, m - 1, day));
+    });
+    if (times.length) {
+      const startH = Math.floor(times[0].mins / 60);
+      const lastMins = times[times.length - 1].mins;
+      const step = times.length > 1 ? times[1].mins - times[0].mins : 60;
+      document.getElementById('avail-start').innerHTML    = timeOptionsHTML(startH);
+      document.getElementById('avail-end').innerHTML      = timeOptionsHTML(Math.min(23, Math.floor(lastMins / 60) + 1));
+      document.getElementById('avail-interval').value     = step === 30 ? '30' : '60';
+    }
+  } else {
+    document.getElementById('options-list').innerHTML = '';
+    poll.slots.forEach((s, idx) => {
+      const list = document.getElementById('options-list');
+      const uid  = 'opt_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+      const div  = document.createElement('div');
+      div.className = 'flex gap-2 items-center';
+      div.id = uid;
+      div.innerHTML = `
+        <span class="w-7 h-7 shrink-0 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 option-label">${OPTION_LETTERS[idx] || (idx+1)}</span>
+        <input type="text" maxlength="120" value="${esc(s.label)}"
+          class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+        <button onclick="removeOption('${uid}')" title="Remove option" aria-label="Remove option"
+          class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>`;
+      list.appendChild(div);
+    });
+    refreshOptionLabels();
+    renderIcons();
+  }
+}
+
 async function clonePoll(e, pollId) {
   e.stopPropagation();
   try {
     const res  = await fetch(`/api/polls/${pollId}`);
     const poll = await res.json();
+    editingPollId  = null;
     createPollType = poll.type;
     initCreateForm();
+    document.getElementById('create-btn').innerHTML = 'Create Poll <i data-lucide="arrow-right" class="w-4 h-4"></i>';
 
     document.getElementById('poll-title').value       = poll.title + ' (copy)';
     document.getElementById('poll-description').value = poll.description || '';
 
-    if (poll.type === 'schedule') {
-      const p = n => String(n).padStart(2,'0');
-      const byDate = {};
-      scheduleDays = [];
-      poll.slots.forEach(s => {
-        const d = new Date(s.datetime);
-        const key = dateStrFromDate(d);
-        if (!byDate[key]) { byDate[key] = { id: newDayId(), date: key, times: [] }; scheduleDays.push(byDate[key]); }
-        const startStr = `${p(d.getHours())}:${p(d.getMinutes())}`;
-        let endStr;
-        if (s.endDatetime) { const e = new Date(s.endDatetime); endStr = `${p(e.getHours())}:${p(e.getMinutes())}`; }
-        else endStr = addHour(startStr);
-        byDate[key].times.push({ id: newTimeId(), start: startStr, end: endStr });
-      });
-      if (!scheduleDays.length) initScheduleDays(); else renderScheduleDays();
-    } else if (poll.type === 'rsvp') {
-      // RSVP has no options to rebuild — description is already prefilled above.
-    } else if (poll.type === 'availability') {
-      const tz = getUserTimezone();
-      const { dates, times } = availStructure(poll, tz);
-      document.getElementById('avail-dates-list').innerHTML = '';
-      dates.forEach(d => {
-        const [y, m, day] = d.key.split('-').map(Number);
-        addAvailDate(new Date(y, m - 1, day));
-      });
-      if (times.length) {
-        const startH = Math.floor(times[0].mins / 60);
-        const lastMins = times[times.length - 1].mins;
-        const step = times.length > 1 ? times[1].mins - times[0].mins : 60;
-        document.getElementById('avail-start').innerHTML    = timeOptionsHTML(startH);
-        document.getElementById('avail-end').innerHTML      = timeOptionsHTML(Math.min(23, Math.floor(lastMins / 60) + 1));
-        document.getElementById('avail-interval').value     = step === 30 ? '30' : '60';
-      }
-    } else {
-      document.getElementById('options-list').innerHTML = '';
-      poll.slots.forEach((s, idx) => {
-        const list = document.getElementById('options-list');
-        const uid  = 'opt_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
-        const div  = document.createElement('div');
-        div.className = 'flex gap-2 items-center';
-        div.id = uid;
-        div.innerHTML = `
-          <span class="w-7 h-7 shrink-0 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 option-label">${OPTION_LETTERS[idx] || (idx+1)}</span>
-          <input type="text" maxlength="120" value="${esc(s.label)}"
-            class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
-          <button onclick="removeOption('${uid}')" title="Remove option" aria-label="Remove option"
-            class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
-            <i data-lucide="x" class="w-4 h-4"></i>
-          </button>`;
-        list.appendChild(div);
-      });
-      refreshOptionLabels();
-      renderIcons();
-    }
+    populateSlotBuilderFrom(poll);
 
     showView('create');
   } catch (err) { showToast('Error loading poll: ' + err.message); }
+}
+
+function startEditPoll(poll) {
+  editingPollId  = poll.id;
+  createPollType = poll.type;
+  initCreateForm();
+
+  document.getElementById('create-title').textContent = 'Edit Poll';
+  document.getElementById('poll-title').value          = poll.title;
+  document.getElementById('poll-description').value    = poll.description || '';
+  if (poll.deadline) {
+    document.getElementById('poll-deadline').value = localDatetimeValue(new Date(poll.deadline));
+  }
+  document.getElementById('poll-expected-voters').value = (poll.expectedVoters || []).join(', ');
+
+  populateSlotBuilderFrom(poll);
+
+  const btn = document.getElementById('create-btn');
+  btn.innerHTML = 'Save Changes <i data-lucide="arrow-right" class="w-4 h-4"></i>';
+
+  showView('create');
+  renderIcons();
+}
+
+function cancelCreateOrEdit() {
+  if (editingPollId) {
+    const id = editingPollId;
+    editingPollId = null;
+    history.pushState({}, '', `/?poll=${id}`);
+    showView('poll');
+    loadPoll(id, { summary: true });
+  } else {
+    goHome();
+  }
 }
 
 async function deleteVote(name) {

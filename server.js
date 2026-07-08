@@ -104,8 +104,87 @@ function clientIp(req) {
   return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
 }
 
+function generateSlotKey() {
+  return 's' + crypto.randomBytes(4).toString('hex');
+}
+
 app.use(express.json({ limit: '16kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ─── FIELD VALIDATORS (shared by create + edit) ───────────────────────────────
+
+function validateTitle(title) {
+  if (typeof title !== 'string' || !title.trim() || title.trim().length > 200) {
+    return { error: 'Title must be under 200 characters.' };
+  }
+  return { value: title.trim() };
+}
+
+function validateDescription(description) {
+  if (description === undefined || description === null) return { value: '' };
+  if (typeof description !== 'string' || description.length > 500) {
+    return { error: 'Description must be under 500 characters.' };
+  }
+  return { value: description.trim() };
+}
+
+function validateDeadline(deadline) {
+  if (deadline === undefined || deadline === null || deadline === '') return { value: null };
+  const ms = Number(deadline);
+  if (!Number.isFinite(ms)) return { error: 'Invalid deadline.' };
+  return { value: ms };
+}
+
+function validateExpectedVoters(expectedVoters) {
+  if (expectedVoters === undefined) return { value: [] };
+  if (!Array.isArray(expectedVoters)) return { error: 'expectedVoters must be an array.' };
+  if (expectedVoters.length > 50) return { error: 'Too many expected voters (max 50).' };
+  return {
+    value: expectedVoters
+      .filter(n => typeof n === 'string' && n.trim())
+      .map(n => n.trim().slice(0, 100))
+  };
+}
+
+function validateSlots(pollType, slots) {
+  const DATETIME_TYPES = ['schedule', 'availability'];
+  const usesDatetime   = DATETIME_TYPES.includes(pollType);
+  const maxSlots       = pollType === 'availability' ? 400 : 30;
+
+  if (!Array.isArray(slots) || slots.length === 0) {
+    return { error: 'Missing required fields.' };
+  }
+  if (slots.length > maxSlots) {
+    return { error: `Too many slots (max ${maxSlots}).` };
+  }
+
+  if (usesDatetime) {
+    for (const s of slots) {
+      if (!Number.isFinite(Number(s.datetime))) {
+        return { error: 'Invalid slot datetime.' };
+      }
+      if (s.endDatetime !== undefined && s.endDatetime !== null) {
+        if (!Number.isFinite(Number(s.endDatetime)) || Number(s.endDatetime) <= Number(s.datetime)) {
+          return { error: 'Invalid slot end time.' };
+        }
+      }
+    }
+    return {
+      value: slots.map(s => {
+        const slot = { datetime: Number(s.datetime) };
+        if (s.endDatetime !== undefined && s.endDatetime !== null) slot.endDatetime = Number(s.endDatetime);
+        return slot;
+      })
+    };
+  }
+
+  for (const s of slots) {
+    if (typeof s.label !== 'string' || !s.label.trim() || s.label.length > 200) {
+      return { error: 'Invalid option label.' };
+    }
+  }
+  return { value: slots.map(s => ({ label: String(s.label).trim() })) };
+}
 
 // ─── DB HELPERS ──────────────────────────────────────────────────────────────
 
@@ -266,86 +345,32 @@ app.post('/api/polls', async (req, res) => {
   const VALID_TYPES = ['schedule', 'question', 'rsvp', 'availability'];
   const pollType = VALID_TYPES.includes(type) ? type : 'schedule';
 
-  // Which types use datetime slots vs. text-label slots
-  const DATETIME_TYPES = ['schedule', 'availability'];
-  const usesDatetime   = DATETIME_TYPES.includes(pollType);
-  const maxSlots       = pollType === 'availability' ? 400 : 30;
-
-  if (!title || !Array.isArray(slots) || slots.length === 0) {
-    return res.status(400).json({ error: 'Missing required fields.' });
-  }
-  if (typeof title !== 'string' || title.trim().length > 200) {
-    return res.status(400).json({ error: 'Title must be under 200 characters.' });
-  }
   if (creatorName !== undefined && creatorName !== null &&
       (typeof creatorName !== 'string' || creatorName.trim().length > 100)) {
     return res.status(400).json({ error: 'Name must be under 100 characters.' });
   }
-  if (description !== undefined && description !== null &&
-      (typeof description !== 'string' || description.length > 500)) {
-    return res.status(400).json({ error: 'Description must be under 500 characters.' });
-  }
-  if (slots.length > maxSlots) {
-    return res.status(400).json({ error: `Too many slots (max ${maxSlots}).` });
-  }
 
-  // Validate slot payloads
-  if (usesDatetime) {
-    for (const s of slots) {
-      if (!Number.isFinite(Number(s.datetime))) {
-        return res.status(400).json({ error: 'Invalid slot datetime.' });
-      }
-      if (s.endDatetime !== undefined && s.endDatetime !== null) {
-        if (!Number.isFinite(Number(s.endDatetime)) || Number(s.endDatetime) <= Number(s.datetime)) {
-          return res.status(400).json({ error: 'Invalid slot end time.' });
-        }
-      }
-    }
-  } else {
-    for (const s of slots) {
-      if (typeof s.label !== 'string' || !s.label.trim() || s.label.length > 200) {
-        return res.status(400).json({ error: 'Invalid option label.' });
-      }
-    }
-  }
-
-  let deadlineMs = null;
-  if (deadline !== undefined && deadline !== null && deadline !== '') {
-    deadlineMs = Number(deadline);
-    if (!Number.isFinite(deadlineMs)) {
-      return res.status(400).json({ error: 'Invalid deadline.' });
-    }
-  }
-
-  let expectedVotersArr = [];
-  if (expectedVoters !== undefined) {
-    if (!Array.isArray(expectedVoters)) {
-      return res.status(400).json({ error: 'expectedVoters must be an array.' });
-    }
-    if (expectedVoters.length > 50) {
-      return res.status(400).json({ error: 'Too many expected voters (max 50).' });
-    }
-    expectedVotersArr = expectedVoters
-      .filter(n => typeof n === 'string' && n.trim())
-      .map(n => n.trim().slice(0, 100));
-  }
+  const titleR = validateTitle(title);
+  if (titleR.error) return res.status(400).json({ error: titleR.error });
+  const descR = validateDescription(description);
+  if (descR.error) return res.status(400).json({ error: descR.error });
+  const deadlineR = validateDeadline(deadline);
+  if (deadlineR.error) return res.status(400).json({ error: deadlineR.error });
+  const votersR = validateExpectedVoters(expectedVoters);
+  if (votersR.error) return res.status(400).json({ error: votersR.error });
+  const slotsR = validateSlots(pollType, slots);
+  if (slotsR.error) return res.status(400).json({ error: slotsR.error });
 
   const poll = {
     id: generateId(),
     type: pollType,
-    title: title.trim(),
+    title: titleR.value,
     creatorName: typeof creatorName === 'string' ? creatorName.trim() : '',
-    description: typeof description === 'string' ? description.trim() : '',
+    description: descR.value,
     createdAt: new Date().toISOString(),
-    deadline: deadlineMs,
-    expectedVoters: expectedVotersArr,
-    slots: usesDatetime
-      ? slots.map((s, i) => {
-          const slot = { id: `s${i}`, datetime: Number(s.datetime) };
-          if (s.endDatetime !== undefined && s.endDatetime !== null) slot.endDatetime = Number(s.endDatetime);
-          return slot;
-        })
-      : slots.map((s, i) => ({ id: `s${i}`, label: String(s.label).trim() }))
+    deadline: deadlineR.value,
+    expectedVoters: votersR.value,
+    slots: slotsR.value.map((s, i) => ({ id: `s${i}`, ...s }))
   };
 
   await createPoll(poll, user.id);
@@ -442,21 +467,119 @@ app.post('/api/polls/:id/unconfirm', async (req, res) => {
   res.json({ success: true });
 });
 
-// Update poll title (owner only)
+// Replace a poll's slots in place, preserving slot_key identity for values
+// that didn't change (so existing votes stay attached to the right option).
+// Slots whose value changed are treated as old-removed + new-added.
+async function updatePollSlots(client, pollId, newSlots) {
+  const existingRes = await client.query(
+    'SELECT slot_key, datetime, end_datetime, label FROM slots WHERE poll_id = $1',
+    [pollId]
+  );
+  const existing = existingRes.rows.map(r => ({
+    slot_key: r.slot_key,
+    datetime: r.datetime !== null ? Number(r.datetime) : null,
+    end_datetime: r.end_datetime !== null ? Number(r.end_datetime) : null,
+    label: r.label
+  }));
+  const consumed = new Set();
+
+  const sameValue = (e, s) =>
+    e.datetime === (s.datetime ?? null) &&
+    e.end_datetime === (s.endDatetime ?? null) &&
+    e.label === (s.label ?? null);
+
+  const resolved = newSlots.map(s => {
+    const match = existing.find(e => !consumed.has(e.slot_key) && sameValue(e, s));
+    if (match) { consumed.add(match.slot_key); return { slot_key: match.slot_key, ...s }; }
+    return { slot_key: generateSlotKey(), ...s };
+  });
+
+  const keysToKeep = new Set(resolved.map(s => s.slot_key));
+  const keysToDelete = existing.filter(e => !keysToKeep.has(e.slot_key)).map(e => e.slot_key);
+  if (keysToDelete.length) {
+    await client.query('DELETE FROM slots WHERE poll_id = $1 AND slot_key = ANY($2)', [pollId, keysToDelete]);
+  }
+
+  for (let i = 0; i < resolved.length; i++) {
+    const s = resolved[i];
+    await client.query(
+      `INSERT INTO slots (poll_id, slot_key, datetime, end_datetime, label, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (poll_id, slot_key) DO UPDATE SET
+         datetime = EXCLUDED.datetime, end_datetime = EXCLUDED.end_datetime,
+         label = EXCLUDED.label, sort_order = EXCLUDED.sort_order`,
+      [pollId, s.slot_key, s.datetime ?? null, s.endDatetime ?? null, s.label ?? null, i]
+    );
+  }
+
+  // Clear confirmed_slot if it no longer exists among the surviving slots.
+  await client.query(
+    `UPDATE polls SET confirmed_slot = NULL
+     WHERE id = $1 AND confirmed_slot IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM slots WHERE poll_id = $1 AND slot_key = polls.confirmed_slot)`,
+    [pollId]
+  );
+}
+
+// Update a poll's title/description/deadline/expectedVoters/slots (owner only)
 app.patch('/api/polls/:id', async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
 
-  const pollRes = await pool.query('SELECT id FROM polls WHERE id = $1 AND owner_id = $2', [req.params.id, user.id]);
-  if (!pollRes.rows[0]) return res.status(404).json({ error: 'Poll not found.' });
+  const pollRes = await pool.query('SELECT id, type FROM polls WHERE id = $1 AND owner_id = $2', [req.params.id, user.id]);
+  const poll = pollRes.rows[0];
+  if (!poll) return res.status(404).json({ error: 'Poll not found.' });
 
-  const { title } = req.body;
+  const { title, description, deadline, expectedVoters, slots } = req.body;
+  const fields = [];
+
   if (title !== undefined) {
-    if (typeof title !== 'string' || !title.trim() || title.length > 200) {
-      return res.status(400).json({ error: 'Invalid title.' });
-    }
-    await pool.query('UPDATE polls SET title = $1 WHERE id = $2', [title.trim(), req.params.id]);
+    const r = validateTitle(title);
+    if (r.error) return res.status(400).json({ error: r.error });
+    fields.push(['title', r.value]);
   }
+  if (description !== undefined) {
+    const r = validateDescription(description);
+    if (r.error) return res.status(400).json({ error: r.error });
+    fields.push(['description', r.value]);
+  }
+  if (deadline !== undefined) {
+    const r = validateDeadline(deadline);
+    if (r.error) return res.status(400).json({ error: r.error });
+    fields.push(['deadline', r.value]);
+  }
+  if (expectedVoters !== undefined) {
+    const r = validateExpectedVoters(expectedVoters);
+    if (r.error) return res.status(400).json({ error: r.error });
+    fields.push(['expected_voters', r.value]);
+  }
+  let resolvedSlots = null;
+  if (slots !== undefined) {
+    const r = validateSlots(poll.type, slots);
+    if (r.error) return res.status(400).json({ error: r.error });
+    resolvedSlots = r.value;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (fields.length) {
+      const setClauses = fields.map(([col], i) => `${col} = $${i + 1}`);
+      const values = fields.map(([, val]) => val);
+      values.push(req.params.id);
+      await client.query(`UPDATE polls SET ${setClauses.join(', ')} WHERE id = $${values.length}`, values);
+    }
+    if (resolvedSlots) {
+      await updatePollSlots(client, req.params.id, resolvedSlots);
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+
   res.json({ success: true });
 });
 
