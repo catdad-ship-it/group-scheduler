@@ -101,7 +101,7 @@ Small things that came up right after Phase 1+2 shipped, done before moving on t
 
 Don't build this until Phases 1–2 are live and someone's using it.
 
-- [ ] Define tiers. Draft: **Free** = 3 active polls, schedule/question/rsvp types. **Pro (~$8–12/mo)** = unlimited polls, availability grids, deadline reminders, custom branding.
+- [ ] Define tiers. Draft: **Free** = 3 active polls, schedule/question/rsvp types. **Pro (~$15–20/mo)** = unlimited polls, availability grids, deadline reminders, custom branding (see Positioning below — branding is the anchor feature for the agency wedge, priced accordingly).
 - [ ] Stripe Checkout for upgrade.
 - [ ] Webhook that flips `user.plan` on successful payment / cancellation.
 - [ ] Enforce limits at poll-creation time (block/upsell when a free user hits the cap).
@@ -121,9 +121,20 @@ Don't build this until Phases 1–2 are live and someone's using it.
 
 ---
 
-## Open product question (decide before Phase 3)
+## Positioning (decided)
 
-The build is ~2–3 focused weeks. The harder question is positioning — this space is crowded (Doodle, When2meet, Rallly, Cal.com). The win isn't "another scheduler," it's a **wedge**: a specific audience or workflow, probably one Brady knows from the agency side, where the generic tools are annoying. Worth deciding before writing billing code. Park it here, don't let it block Phases 1–2.
+**The wedge: agencies and client-services teams scheduling multi-stakeholder meetings across two organizations** — kickoffs, review calls, working sessions where you're wrangling availability across your own team *and* a handful of client-side people who are slow to respond and not on your calendar tool.
+
+Why this one, not a generic "another scheduler" play or the wedding/event-party angle (which is what real usage has actually looked like so far):
+
+- Calendly/Cal.com are built for 1:1 booking, not group consensus. Doodle/When2meet/Rallly are built for casual friend-group scheduling and read as unprofessional in front of a client. Neither serves "align 8 people across 2 companies on a time."
+- The features already built line up with this: expected-voters + "who hasn't voted" tracking (chasing the one unresponsive client stakeholder is the actual daily pain), deadlines, and the description field for meeting context/agenda. These read as "get busy external people to commit" features, not casual-scheduling features.
+- Wedding/event-party use (the real usage seen so far) is B2C, one-and-done per customer, and a weak fit for recurring SaaS revenue. Agency work is repeat business with an actual budget line for tools like this already.
+
+**What this changes for Phase 3+:**
+- Custom branding (agency logo/colors on the voting page a client sees) is a Pro-tier anchor feature, not a nice-to-have — it's what makes an agency look competent in front of their client.
+- Price a notch higher than a casual-consumer tool: float **$15–20/mo** for Pro rather than $8–12, since agencies already have budget for Calendly Teams/Doodle-equivalent tools.
+- Homepage/marketing copy should eventually speak to this audience directly (not urgent before Phase 3, but worth revisiting before spending on acquisition).
 
 ## Terminal setup (run when you start Phase 2)
 
