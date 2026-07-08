@@ -1,0 +1,8 @@
+.git
+.DS_Store
+.env
+.claude/settings.local.json
+cookies.txt
+polls-backup-*.json
+polls-live-snapshot.json
+polls.json
