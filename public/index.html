@@ -108,6 +108,10 @@
       Huddle
     </button>
     <div class="flex items-center gap-2">
+      <button onclick="goHome()" aria-label="Home"
+        class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
+        <i data-lucide="home" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> Home</span>
+      </button>
       <button id="nav-mypolls-btn" onclick="goToDashboard()" style="display:none" aria-label="My Polls"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
         <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> My Polls</span>
@@ -154,13 +158,22 @@
 
     <!-- Hero -->
     <div class="text-center mb-12">
-      <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-50 rounded-3xl mb-6">
-        <i data-lucide="bar-chart-2" class="w-8 h-8 text-blue-600"></i>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-[24px] shadow-sm shrink-0" style="background:#2563eb">
+          <svg viewBox="0 0 24 24" class="w-10 h-10" fill="#ffffff" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="4" rx="2"/>
+            <rect x="3" y="10" width="13" height="4" rx="2" fill-opacity="0.6"/>
+            <rect x="3" y="15" width="9" height="4" rx="2" fill-opacity="0.6"/>
+          </svg>
+        </div>
+        <h1 class="text-5xl sm:text-6xl font-bold tracking-tight text-gray-900 leading-none">
+          Huddle
+        </h1>
       </div>
-      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 leading-tight mb-3">
-        Group decisions,<br>made easy.
-      </h1>
-      <p class="text-gray-500 text-lg leading-relaxed max-w-xs mx-auto">
+      <p class="text-gray-900 text-lg font-semibold mb-1">
+        Group decisions, made easy.
+      </p>
+      <p class="text-gray-500 text-base leading-relaxed max-w-xs mx-auto">
         Create a poll, share the link, and let everyone weigh in.
       </p>
     </div>
