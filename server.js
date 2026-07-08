@@ -113,7 +113,7 @@ app.get('/api/admin/polls', (req, res) => {
 
 // Create a new poll
 app.post('/api/polls', (req, res) => {
-  const { title, creatorName, slots, type, deadline, expectedVoters } = req.body;
+  const { title, creatorName, description, slots, type, deadline, expectedVoters } = req.body;
   const VALID_TYPES = ['schedule', 'question', 'rsvp', 'availability'];
   const pollType = VALID_TYPES.includes(type) ? type : 'schedule';
 
@@ -122,14 +122,19 @@ app.post('/api/polls', (req, res) => {
   const usesDatetime   = DATETIME_TYPES.includes(pollType);
   const maxSlots       = pollType === 'availability' ? 400 : 30;
 
-  if (!title || !creatorName || !Array.isArray(slots) || slots.length === 0) {
+  if (!title || !Array.isArray(slots) || slots.length === 0) {
     return res.status(400).json({ error: 'Missing required fields.' });
   }
   if (typeof title !== 'string' || title.trim().length > 200) {
     return res.status(400).json({ error: 'Title must be under 200 characters.' });
   }
-  if (typeof creatorName !== 'string' || creatorName.trim().length > 100) {
+  if (creatorName !== undefined && creatorName !== null &&
+      (typeof creatorName !== 'string' || creatorName.trim().length > 100)) {
     return res.status(400).json({ error: 'Name must be under 100 characters.' });
+  }
+  if (description !== undefined && description !== null &&
+      (typeof description !== 'string' || description.length > 500)) {
+    return res.status(400).json({ error: 'Description must be under 500 characters.' });
   }
   if (slots.length > maxSlots) {
     return res.status(400).json({ error: `Too many slots (max ${maxSlots}).` });
@@ -140,6 +145,11 @@ app.post('/api/polls', (req, res) => {
     for (const s of slots) {
       if (!Number.isFinite(Number(s.datetime))) {
         return res.status(400).json({ error: 'Invalid slot datetime.' });
+      }
+      if (s.endDatetime !== undefined && s.endDatetime !== null) {
+        if (!Number.isFinite(Number(s.endDatetime)) || Number(s.endDatetime) <= Number(s.datetime)) {
+          return res.status(400).json({ error: 'Invalid slot end time.' });
+        }
       }
     }
   } else {
@@ -178,13 +188,18 @@ app.post('/api/polls', (req, res) => {
     id,
     type: pollType,
     title: title.trim(),
-    creatorName: creatorName.trim(),
+    creatorName: typeof creatorName === 'string' ? creatorName.trim() : '',
+    description: typeof description === 'string' ? description.trim() : '',
     createdAt: new Date().toISOString(),
     deadline: deadlineMs,
     expectedVoters: expectedVotersArr,
     confirmedSlot: null,
     slots: usesDatetime
-      ? slots.map((s, i) => ({ id: `s${i}`, datetime: Number(s.datetime) }))
+      ? slots.map((s, i) => {
+          const slot = { id: `s${i}`, datetime: Number(s.datetime) };
+          if (s.endDatetime !== undefined && s.endDatetime !== null) slot.endDatetime = Number(s.endDatetime);
+          return slot;
+        })
       : slots.map((s, i) => ({ id: `s${i}`, label: String(s.label).trim() })),
     votes: []
   };

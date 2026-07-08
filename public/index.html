@@ -243,10 +243,11 @@
           class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
       </div>
       <div>
-        <label for="creator-name"
-          class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
-        <input type="text" id="creator-name" maxlength="60" placeholder="Your name"
-          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
+        <label for="poll-description"
+          class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Description or Details <span class="font-normal normal-case text-gray-400">(optional)</span></label>
+        <textarea id="poll-description" maxlength="500" rows="2"
+          placeholder="Add context people will see on the poll — location, agenda, what to bring…"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400 resize-y"></textarea>
       </div>
     </div>
 
@@ -256,12 +257,12 @@
     <div id="schedule-options-section">
       <div class="mb-3">
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Time Options</label>
-        <p class="text-xs text-gray-500 mt-0.5">Times use your browser's local timezone</p>
+        <p class="text-xs text-gray-500 mt-0.5">Add one or more start–end times under each day. Times use your browser's local timezone.</p>
       </div>
-      <div class="space-y-2" id="slots-list"></div>
-      <button onclick="addSlot()"
+      <div class="space-y-3" id="slots-list"></div>
+      <button onclick="addScheduleDay()"
         class="mt-2 w-full py-2.5 border border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-1.5">
-        <i data-lucide="plus" class="w-4 h-4"></i> Add a time slot
+        <i data-lucide="plus" class="w-4 h-4"></i> Add a day
       </button>
     </div>
 
@@ -280,10 +281,10 @@
 
     <!-- RSVP: no options needed -->
     <div id="rsvp-options-section" style="display:none">
-      <label for="rsvp-details" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Details <span class="font-normal normal-case text-gray-400">(optional)</span></label>
-      <input type="text" id="rsvp-details" maxlength="200" placeholder="e.g. Friday 6pm at The Anchor"
-        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
-      <p class="text-xs text-gray-500 mt-1">Everyone replies Yes, Maybe, or No — you get a live headcount.</p>
+      <div class="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+        <i data-lucide="users" class="w-4 h-4 text-gray-400 mt-0.5 shrink-0"></i>
+        <p class="text-xs text-gray-500">Everyone replies Yes, Maybe, or No — you get a live headcount. Use the description box above to add the where and when.</p>
+      </div>
     </div>
 
     <!-- Availability grid setup -->
@@ -696,6 +697,27 @@ function formatSlot(utcMs, tz) {
   return { dateStr, timeStr };
 }
 
+// Time string for a slot — a start–end range when the slot has an end time.
+function formatSlotTime(slot, tz) {
+  const hm  = ms => new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(ms));
+  const abbr = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: true, timeZoneName: 'short' })
+                 .formatToParts(new Date(slot.datetime)).find(p => p.type === 'timeZoneName')?.value || '';
+  if (slot.endDatetime) return `${hm(slot.datetime)} – ${hm(slot.endDatetime)}${abbr ? ' ' + abbr : ''}`;
+  return `${hm(slot.datetime)}${abbr ? ' ' + abbr : ''}`;
+}
+
+// Group slots by their day (in the given tz), preserving order.
+function groupSlotsByDay(slots, tz) {
+  const groups = [];
+  const idx = {};
+  slots.forEach(s => {
+    const key = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(s.datetime));
+    if (!(key in idx)) { idx[key] = groups.length; groups.push({ label: key, slots: [] }); }
+    groups[idx[key]].slots.push(s);
+  });
+  return groups;
+}
+
 function tzSelectHTML(id, selected) {
   const options = getTimezones().map(tz =>
     `<option value="${esc(tz)}"${tz === selected ? ' selected' : ''}>${tz.replace(/_/g, ' ')}</option>`
@@ -715,12 +737,10 @@ const CREATE_COPY = {
 
 function initCreateForm() {
   document.getElementById('poll-title').value   = '';
-  document.getElementById('creator-name').value = '';
+  document.getElementById('poll-description').value = '';
   document.getElementById('poll-deadline').value = '';
   document.getElementById('poll-expected-voters').value = '';
   document.getElementById('create-error').textContent = '';
-  const rsvpDetails = document.getElementById('rsvp-details');
-  if (rsvpDetails) rsvpDetails.value = '';
 
   const t = createPollType;
   const copy = CREATE_COPY[t] || CREATE_COPY.schedule;
@@ -738,8 +758,7 @@ function initCreateForm() {
     document.getElementById('options-list').innerHTML = '';
     addOption(); addOption(); addOption();
   } else if (t === 'schedule') {
-    document.getElementById('slots-list').innerHTML = '';
-    addSlot(); addSlot();
+    initScheduleDays();
   } else if (t === 'availability') {
     initAvailSetup();
   }
@@ -798,35 +817,137 @@ function localDatetimeValue(date) {
   return `${date.getFullYear()}-${p(date.getMonth()+1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
 }
 
-function addSlot(datetimeMs) {
-  const list = document.getElementById('slots-list');
-  const uid  = 'sl_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
-  let dflt;
-  if (datetimeMs) {
-    dflt = new Date(datetimeMs);
-  } else {
-    dflt = new Date(); dflt.setDate(dflt.getDate() + 1); dflt.setHours(12,0,0,0);
-  }
-  const minAttr = datetimeMs ? '' : `min="${localDatetimeValue(new Date())}"`;
+// ── Schedule day → times model ───────────────────────────
+// scheduleDays: [{ id, date:'YYYY-MM-DD', times:[{ id, start:'HH:MM', end:'HH:MM' }] }]
+let scheduleDays = [];
 
-  const div = document.createElement('div');
-  div.className = 'flex gap-2 items-center';
-  div.id = uid;
-  div.innerHTML = `
-    <input type="datetime-local" value="${localDatetimeValue(dflt)}" ${minAttr}
-      class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">
-    <button onclick="removeSlot('${uid}')" title="Remove time slot" aria-label="Remove time slot"
-      class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all shrink-0">
-      <i data-lucide="x" class="w-4 h-4"></i>
-    </button>`;
-  list.appendChild(div);
+function newDayId()  { return 'd_' + Date.now() + '_' + Math.random().toString(36).slice(2,5); }
+function newTimeId() { return 't_' + Date.now() + '_' + Math.random().toString(36).slice(2,5); }
+
+function dateStrFromDate(d) {
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+
+function initScheduleDays() {
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  scheduleDays = [{
+    id: newDayId(),
+    date: dateStrFromDate(d),
+    times: [ { id: newTimeId(), start: '12:00', end: '13:00' } ]
+  }];
+  renderScheduleDays();
+}
+
+// Read current input values back into the model before any re-render
+function syncScheduleDaysFromDOM() {
+  document.querySelectorAll('#slots-list .schedule-day').forEach(dayEl => {
+    const day = scheduleDays.find(d => d.id === dayEl.dataset.dayId);
+    if (!day) return;
+    const dateInput = dayEl.querySelector('input[type="date"]');
+    if (dateInput) day.date = dateInput.value;
+    dayEl.querySelectorAll('.schedule-time').forEach(timeEl => {
+      const t = day.times.find(x => x.id === timeEl.dataset.timeId);
+      if (!t) return;
+      t.start = timeEl.querySelector('.time-start').value;
+      t.end   = timeEl.querySelector('.time-end').value;
+    });
+  });
+}
+
+function renderScheduleDays() {
+  const list = document.getElementById('slots-list');
+  const todayMin = dateStrFromDate(new Date());
+  list.innerHTML = scheduleDays.map(day => {
+    const showRemoveDay = scheduleDays.length > 1;
+    const times = day.times.map(t => {
+      const showRemoveTime = day.times.length > 1;
+      return `
+        <div class="schedule-time flex items-center gap-2" data-time-id="${t.id}">
+          <div class="flex-1 flex items-center gap-2">
+            <span class="text-[10px] font-semibold text-blue-500 uppercase tracking-wider w-9 shrink-0">Start</span>
+            <input type="time" value="${t.start}" class="time-start flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white">
+          </div>
+          <div class="flex-1 flex items-center gap-2">
+            <span class="text-[10px] font-semibold text-blue-500 uppercase tracking-wider w-7 shrink-0">End</span>
+            <input type="time" value="${t.end}" class="time-end flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white">
+          </div>
+          <button onclick="removeScheduleTime('${day.id}','${t.id}')" title="Remove time" aria-label="Remove time"
+            class="w-8 h-8 flex items-center justify-center rounded-lg transition-all shrink-0 ${showRemoveTime ? 'text-gray-400 hover:text-red-400 hover:bg-red-50' : 'invisible pointer-events-none'}">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>`;
+    }).join('');
+    return `
+      <div class="schedule-day border border-gray-200 rounded-2xl p-3" data-day-id="${day.id}">
+        <div class="flex items-center gap-2 mb-2.5">
+          <input type="date" value="${day.date}" min="${todayMin}"
+            class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 bg-white">
+          <button onclick="removeScheduleDay('${day.id}')" title="Remove day" aria-label="Remove day"
+            class="w-8 h-8 flex items-center justify-center rounded-lg transition-all shrink-0 ${showRemoveDay ? 'text-gray-400 hover:text-red-400 hover:bg-red-50' : 'invisible pointer-events-none'}">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <div class="space-y-2">${times}</div>
+        <button onclick="addScheduleTime('${day.id}')"
+          class="mt-2 text-xs font-semibold text-blue-500 hover:text-blue-600 flex items-center gap-1">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add another time
+        </button>
+      </div>`;
+  }).join('');
   renderIcons();
 }
 
-function removeSlot(id) {
-  const list = document.getElementById('slots-list');
-  if (list.children.length <= 1) { showToast('You need at least one time slot.'); return; }
-  document.getElementById(id)?.remove();
+function totalScheduleTimes() {
+  return scheduleDays.reduce((n, d) => n + d.times.length, 0);
+}
+
+function addScheduleDay(dateStr) {
+  syncScheduleDaysFromDOM();
+  if (scheduleDays.length >= 30) { showToast('Up to 30 days.'); return; }
+  let date = dateStr;
+  if (!date) {
+    // default to the day after the last day already added
+    const last = scheduleDays[scheduleDays.length - 1];
+    const base = last ? new Date(last.date + 'T00:00') : new Date();
+    base.setDate(base.getDate() + 1);
+    date = dateStrFromDate(base);
+  }
+  scheduleDays.push({ id: newDayId(), date, times: [ { id: newTimeId(), start: '12:00', end: '13:00' } ] });
+  renderScheduleDays();
+}
+
+function removeScheduleDay(dayId) {
+  syncScheduleDaysFromDOM();
+  if (scheduleDays.length <= 1) { showToast('You need at least one day.'); return; }
+  scheduleDays = scheduleDays.filter(d => d.id !== dayId);
+  renderScheduleDays();
+}
+
+function addScheduleTime(dayId) {
+  syncScheduleDaysFromDOM();
+  if (totalScheduleTimes() >= 30) { showToast('Up to 30 time options total.'); return; }
+  const day = scheduleDays.find(d => d.id === dayId);
+  if (!day) return;
+  const last = day.times[day.times.length - 1];
+  day.times.push({ id: newTimeId(), start: last ? last.end : '12:00', end: last ? addHour(last.end) : '13:00' });
+  renderScheduleDays();
+}
+
+function removeScheduleTime(dayId, timeId) {
+  syncScheduleDaysFromDOM();
+  const day = scheduleDays.find(d => d.id === dayId);
+  if (!day) return;
+  if (day.times.length <= 1) { showToast('Each day needs at least one time.'); return; }
+  day.times = day.times.filter(t => t.id !== timeId);
+  renderScheduleDays();
+}
+
+function addHour(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const nh = Math.min(23, (h || 0) + 1);
+  const p = n => String(n).padStart(2,'0');
+  return `${p(nh)}:${p(m || 0)}`;
 }
 
 // ── Question option add/remove ────────────────────────
@@ -866,12 +987,11 @@ function refreshOptionLabels() {
 
 async function createPoll() {
   const title       = document.getElementById('poll-title').value.trim();
-  const creatorName = document.getElementById('creator-name').value.trim();
+  const description = document.getElementById('poll-description').value.trim();
   const errEl       = document.getElementById('create-error');
   errEl.textContent = '';
 
   if (!title)       { errEl.textContent = 'Please enter a title.'; return; }
-  if (!creatorName) { errEl.textContent = 'Please enter your name.'; return; }
 
   let slots;
   if (createPollType === 'question') {
@@ -883,8 +1003,7 @@ async function createPoll() {
       slots.push({ label: inp.value.trim() });
     }
   } else if (createPollType === 'rsvp') {
-    const details = document.getElementById('rsvp-details')?.value.trim();
-    slots = [{ label: details || 'Attending' }];
+    slots = [{ label: 'Attending' }];
   } else if (createPollType === 'availability') {
     const dateInputs = document.querySelectorAll('#avail-dates-list input[type="date"]');
     if (!dateInputs.length) { errEl.textContent = 'Please add at least one date.'; return; }
@@ -903,13 +1022,25 @@ async function createPoll() {
     }
     if (slots.length > 400) { errEl.textContent = 'That grid is too large — reduce dates or hours.'; return; }
   } else {
-    const inputs = document.querySelectorAll('#slots-list input[type="datetime-local"]');
-    if (!inputs.length) { errEl.textContent = 'Please add at least one time slot.'; return; }
+    syncScheduleDaysFromDOM();
+    if (!scheduleDays.length) { errEl.textContent = 'Please add at least one day.'; return; }
     slots = [];
-    for (const inp of inputs) {
-      if (!inp.value) { errEl.textContent = 'Please fill in all time slots.'; return; }
-      slots.push({ datetime: new Date(inp.value).getTime() });
+    for (const day of scheduleDays) {
+      if (!day.date) { errEl.textContent = 'Please pick a date for every day.'; return; }
+      const [y, mo, d] = day.date.split('-').map(Number);
+      for (const t of day.times) {
+        if (!t.start || !t.end) { errEl.textContent = 'Please fill in every start and end time.'; return; }
+        const [sh, sm] = t.start.split(':').map(Number);
+        const [eh, em] = t.end.split(':').map(Number);
+        const startMs = new Date(y, mo - 1, d, sh, sm).getTime();
+        const endMs   = new Date(y, mo - 1, d, eh, em).getTime();
+        if (endMs <= startMs) { errEl.textContent = 'End time must be after start time on each option.'; return; }
+        slots.push({ datetime: startMs, endDatetime: endMs });
+      }
     }
+    if (slots.length > 30) { errEl.textContent = 'Too many time options (max 30).'; return; }
+    // chronological order
+    slots.sort((a, b) => a.datetime - b.datetime);
   }
 
   const deadlineInput = document.getElementById('poll-deadline').value;
@@ -925,7 +1056,7 @@ async function createPoll() {
     const res  = await fetch('/api/polls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, creatorName, slots, type: createPollType, deadline, expectedVoters })
+      body: JSON.stringify({ title, description, slots, type: createPollType, deadline, expectedVoters })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to create poll.');
@@ -1399,10 +1530,8 @@ function renderPollHeader(poll, deadlineLine) {
           </button>
         </div>
       </div>
-      <div class="flex items-center gap-2 text-sm text-gray-500 mt-1">
-        <i data-lucide="user" class="w-3.5 h-3.5"></i>
-        Created by <strong class="text-gray-600">${esc(poll.creatorName)}</strong>
-        <span class="text-gray-200">·</span>
+      ${poll.description ? `<p class="text-sm text-gray-600 mt-2 whitespace-pre-line">${esc(poll.description)}</p>` : ''}
+      <div class="flex items-center gap-2 text-sm text-gray-500 mt-2">
         <i data-lucide="users" class="w-3.5 h-3.5"></i>
         ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}
       </div>
@@ -1738,7 +1867,8 @@ function renderSchedulePoll() {
   if (poll.confirmedSlot) {
     const cs = poll.slots.find(s => s.id === poll.confirmedSlot);
     if (cs) {
-      const { dateStr, timeStr } = formatSlot(cs.datetime, tz);
+      const { dateStr } = formatSlot(cs.datetime, tz);
+      const timeStr = formatSlotTime(cs, tz);
       banner = `
         <div class="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3.5 mb-6">
           <div class="w-8 h-8 bg-green-500 rounded-xl flex items-center justify-center shrink-0">
@@ -1804,27 +1934,37 @@ function renderClosedCard() {
     </div>`;
 }
 
+function renderVoteSlots(poll, tz) {
+  return groupSlotsByDay(poll.slots, tz).map(group => {
+    const rows = group.slots.map(slot => {
+      const timeStr = formatSlotTime(slot, tz);
+      const r = voteResponses[slot.id];
+      return `
+        <div class="bg-white border border-gray-100 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" id="vs-${slot.id}">
+          <div class="slot-label min-w-0">
+            <div class="text-sm font-semibold text-gray-900">${esc(timeStr)}</div>
+          </div>
+          <div class="vote-btns flex gap-1.5">
+            <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='yes'   ? 'sel-yes'   : ''}" onclick="setVote('${slot.id}','yes')">✓ Yes</button>
+            <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slot.id}','maybe')">~ Maybe</button>
+            <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='no'    ? 'sel-no'    : ''}" onclick="setVote('${slot.id}','no')">✗ No</button>
+          </div>
+        </div>`;
+    }).join('');
+    return `
+      <div>
+        <div class="text-sm font-bold text-gray-900 mb-2">${esc(group.label)}</div>
+        <div class="space-y-2">${rows}</div>
+      </div>`;
+  }).join('');
+}
+
 function renderVoteForm(poll, tz) {
   if (poll.deadline && Date.now() > poll.deadline) return renderClosedCard();
   const record = getVoteRecord(poll.id);
   if (record) return renderAlreadyVotedCard(record.name, poll.id);
 
-  const slotsHTML = poll.slots.map(slot => {
-    const { dateStr, timeStr } = formatSlot(slot.datetime, tz);
-    const r = voteResponses[slot.id];
-    return `
-      <div class="bg-white border border-gray-100 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" id="vs-${slot.id}">
-        <div class="slot-label min-w-0">
-          <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
-          <div class="text-xs text-gray-500">${esc(timeStr)}</div>
-        </div>
-        <div class="vote-btns flex gap-1.5">
-          <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='yes'   ? 'sel-yes'   : ''}" onclick="setVote('${slot.id}','yes')">✓ Yes</button>
-          <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='maybe' ? 'sel-maybe' : ''}" onclick="setVote('${slot.id}','maybe')">~ Maybe</button>
-          <button class="vbtn flex-1 sm:flex-none text-center px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 bg-white hover:border-gray-300 ${r==='no'    ? 'sel-no'    : ''}" onclick="setVote('${slot.id}','no')">✗ No</button>
-        </div>
-      </div>`;
-  }).join('');
+  const slotsHTML = renderVoteSlots(poll, tz);
 
   return `
     <h2 class="font-bold text-gray-900 mb-4">Cast Your Vote</h2>
@@ -1837,7 +1977,7 @@ function renderVoteForm(poll, tz) {
       <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Timezone</label>
       ${tzSelectHTML('vote-tz', tz)}
     </div>
-    <div class="space-y-2 mb-4" id="vote-slots">${slotsHTML}</div>
+    <div class="space-y-4 mb-4" id="vote-slots">${slotsHTML}</div>
     <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
     <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
       id="vote-btn" onclick="submitVote()">
@@ -1960,10 +2100,9 @@ function renderResults(poll, tz) {
   const bestScore = scoreOf(sortedByScore[0].id);
   const winnerId  = bestScore > 0 ? sortedByScore[0].id : null;
 
-  const displaySlots = resultsSortByScore ? sortedByScore : poll.slots;
-
-  const cards = displaySlots.map(slot => {
-    const { dateStr, timeStr } = formatSlot(slot.datetime, tz);
+  const cardHTML = (slot, showDate) => {
+    const { dateStr } = formatSlot(slot.datetime, tz);
+    const timeStr  = formatSlotTime(slot, tz);
     const isConf   = poll.confirmedSlot === slot.id;
     const isWinner = slot.id === winnerId && !poll.confirmedSlot;
     const { yes, maybe } = slotScores[slot.id];
@@ -1999,8 +2138,8 @@ function renderResults(poll, tz) {
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             ${badge}
-            <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
-            <div class="text-xs text-gray-500">${esc(timeStr)}</div>
+            ${showDate ? `<div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>` : ''}
+            <div class="${showDate ? 'text-xs text-gray-500' : 'text-sm font-semibold text-gray-900'}">${esc(timeStr)}</div>
           </div>
           ${action}
         </div>
@@ -2013,10 +2152,24 @@ function renderResults(poll, tz) {
         </div>
         <div class="flex flex-wrap gap-1.5 mt-3">${avatars}</div>
       </div>`;
-  }).join('');
+  };
+
+  let body;
+  if (resultsSortByScore) {
+    // Best-first: flat list, each card shows its own date.
+    body = `<div class="space-y-2.5">${sortedByScore.map(s => cardHTML(s, true)).join('')}</div>`;
+  } else {
+    // Original order: group under day headers.
+    body = groupSlotsByDay(poll.slots, tz).map(group => `
+      <div>
+        <div class="text-sm font-bold text-gray-900 mb-2">${esc(group.label)}</div>
+        <div class="space-y-2.5">${group.slots.map(s => cardHTML(s, false)).join('')}</div>
+      </div>`).join('');
+    body = `<div class="space-y-4">${body}</div>`;
+  }
 
   return header + `
-    <div class="space-y-2.5">${cards}</div>
+    ${body}
     <p class="mt-3 text-xs text-gray-500 flex items-start gap-1">
       <i data-lucide="clock" class="w-3 h-3 mt-0.5 shrink-0"></i>
       <span>Times shown in your local timezone (${esc(tz)}). Tap a name to see how they voted; hit Confirm to lock in a time.</span>
@@ -2030,7 +2183,7 @@ function downloadICS(poll) {
   const slot = poll.slots.find(s => s.id === poll.confirmedSlot);
   if (!slot) return;
   const start = new Date(slot.datetime);
-  const end   = new Date(slot.datetime + 60 * 60 * 1000); // default 1 hour
+  const end   = new Date(slot.endDatetime || slot.datetime + 60 * 60 * 1000); // slot end, or default 1 hour
   const fmt   = d => d.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
   const ics = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', "PRODID:-//Brady's Little Helper//EN",
@@ -2081,14 +2234,8 @@ async function unconfirmSlot() {
 document.addEventListener('change', e => {
   if (e.target.id === 'vote-tz' && currentPoll) {
     const newTZ = e.target.value;
-    currentPoll.slots.forEach(slot => {
-      const el = document.getElementById('vs-' + slot.id);
-      if (!el) return;
-      const { dateStr, timeStr } = formatSlot(slot.datetime, newTZ);
-      el.querySelector('.slot-label').innerHTML = `
-        <div class="text-sm font-semibold text-gray-900">${esc(dateStr)}</div>
-        <div class="text-xs text-gray-500">${esc(timeStr)}</div>`;
-    });
+    const container = document.getElementById('vote-slots');
+    if (container) { container.innerHTML = renderVoteSlots(currentPoll, newTZ); renderIcons(); }
   }
 });
 
@@ -2114,15 +2261,26 @@ async function clonePoll(e, pollId) {
     createPollType = poll.type;
     initCreateForm();
 
-    document.getElementById('poll-title').value    = poll.title + ' (copy)';
-    document.getElementById('creator-name').value  = poll.creatorName;
+    document.getElementById('poll-title').value       = poll.title + ' (copy)';
+    document.getElementById('poll-description').value = poll.description || '';
 
     if (poll.type === 'schedule') {
-      document.getElementById('slots-list').innerHTML = '';
-      poll.slots.forEach(s => addSlot(s.datetime));
+      const p = n => String(n).padStart(2,'0');
+      const byDate = {};
+      scheduleDays = [];
+      poll.slots.forEach(s => {
+        const d = new Date(s.datetime);
+        const key = dateStrFromDate(d);
+        if (!byDate[key]) { byDate[key] = { id: newDayId(), date: key, times: [] }; scheduleDays.push(byDate[key]); }
+        const startStr = `${p(d.getHours())}:${p(d.getMinutes())}`;
+        let endStr;
+        if (s.endDatetime) { const e = new Date(s.endDatetime); endStr = `${p(e.getHours())}:${p(e.getMinutes())}`; }
+        else endStr = addHour(startStr);
+        byDate[key].times.push({ id: newTimeId(), start: startStr, end: endStr });
+      });
+      if (!scheduleDays.length) initScheduleDays(); else renderScheduleDays();
     } else if (poll.type === 'rsvp') {
-      const details = poll.slots[0]?.label;
-      if (details && details !== 'Attending') document.getElementById('rsvp-details').value = details;
+      // RSVP has no options to rebuild — description is already prefilled above.
     } else if (poll.type === 'availability') {
       const tz = getUserTimezone();
       const { dates, times } = availStructure(poll, tz);
