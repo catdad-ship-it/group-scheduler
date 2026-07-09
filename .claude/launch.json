@@ -8,6 +8,9 @@
         "DATABASE_URL=postgres://localhost:5432/group_scheduler_dev",
         "JWT_SECRET=dev-local-secret",
         "PORT=3010",
+        "STRIPE_SECRET_KEY=REDACTED_STRIPE_TEST_KEY",
+        "STRIPE_PRICE_ID=price_1TrMZlRxAQehE699KelB5UF3",
+        "STRIPE_WEBHOOK_SECRET=REDACTED_WEBHOOK_SECRET",
         "node",
         "server.js"
       ],
