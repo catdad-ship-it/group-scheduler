@@ -99,15 +99,17 @@ Small things that came up right after Phase 1+2 shipped, done before moving on t
 
 ## Phase 3 — Billing (Stripe)
 
-Don't build this until Phases 1–2 are live and someone's using it.
+- [x] Define tiers (revised from the original draft after discussion). **Free** = 3 active polls (no `confirmed_slot` and not past `deadline`), schedule/question/rsvp types only. **Pro = $5/mo** (launch-price, well below the original $15–20 positioning target — intentional, revisit once there are real payers) = unlimited active polls + the `availability` poll type. Deadline reminders and custom branding stay Phase 4 — they don't exist as features yet, so Pro isn't gated on them at launch.
+- [x] Stripe Checkout for upgrade (`POST /api/billing/checkout`, subscription mode).
+- [x] Webhook that flips `user.plan` on `checkout.session.completed`, `customer.subscription.deleted`, and `invoice.payment_failed` (`POST /api/webhooks/stripe`).
+- [x] Enforce limits at poll-creation time — 402 with an upsell message, checked both client- and server-side.
+- [x] Billing settings page: current plan, upgrade button (free) or manage-billing button via Stripe portal (pro).
+- [x] Grandfathering: `scripts/grandfather-existing-users.js` sets every pre-existing user to `plan='pro'` — written but **not yet run**; run it once at prod cutover, right before this ships.
+- [x] Downgrade behavior: cancelling/failed payment flips to `free` but never touches existing polls — only blocks *creating new* polls (or using `availability`) while over the cap.
 
-- [ ] Define tiers. Draft: **Free** = 3 active polls, schedule/question/rsvp types. **Pro (~$15–20/mo)** = unlimited polls, availability grids, deadline reminders, custom branding (see Positioning below — branding is the anchor feature for the agency wedge, priced accordingly).
-- [ ] Stripe Checkout for upgrade.
-- [ ] Webhook that flips `user.plan` on successful payment / cancellation.
-- [ ] Enforce limits at poll-creation time (block/upsell when a free user hits the cap).
-- [ ] Billing settings page: current plan, manage/cancel via Stripe portal.
+**Not yet done:** the actual Stripe Checkout → test payment → webhook round trip hasn't been exercised — no test-mode keys/Stripe CLI configured locally yet. Verify that end-to-end (with `stripe listen` forwarding to local `/api/webhooks/stripe`) before merging to `main` or deploying.
 
-**Acceptance:** a free user hits the cap and gets an upgrade prompt; paying flips them to Pro and unlocks features; cancelling downgrades them at period end.
+**Acceptance:** a free user hits the cap and gets an upgrade prompt (✅ verified locally); paying flips them to Pro and unlocks features (⏳ not yet verified — needs live Stripe test); cancelling downgrades them at period end (⏳ not yet verified).
 
 ## Phase 4 — The stuff that makes people pay
 
