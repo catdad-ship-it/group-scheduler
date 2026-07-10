@@ -29,6 +29,12 @@
     .view { display: none; }
     .view.active { display: block; }
 
+    /* ── Branding accent (Phase 6) ────────────────────
+       --brand defaults to the app's blue, so an unbranded poll is
+       pixel-identical; applyBrandTheme() overrides it per-poll. */
+    :root { --brand: #2563eb; }
+    .brand-cta { background: var(--brand) !important; }
+
     /* ── Toast ────────────────────────────────────── */
     .toast {
       position: fixed; bottom: 24px; left: 50%;
@@ -157,6 +163,10 @@
       <button id="nav-mypolls-btn" onclick="goToDashboard()" style="display:none" aria-label="My Polls"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
         <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> My Polls</span>
+      </button>
+      <button id="nav-branding-btn" onclick="goToBranding()" style="display:none" aria-label="Branding"
+        class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
+        <i data-lucide="palette" class="w-3.5 h-3.5"></i><span class="hidden sm:inline"> Branding</span>
       </button>
       <button id="nav-login-btn" onclick="showLoginView()" style="display:none" aria-label="Log in"
         class="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all">
@@ -535,6 +545,78 @@
   </div>
 </div>
 
+<!-- ════════════════════════════════════════════════════
+     BRANDING VIEW (Phase 6)
+═════════════════════════════════════════════════════ -->
+<div id="view-branding" class="view">
+  <div class="max-w-lg mx-auto px-5 pt-8 pb-24">
+    <h1 class="text-2xl font-bold text-gray-900 mb-1">Branding</h1>
+    <p class="text-sm text-gray-500 mb-6">Add your logo and color — they'll appear on every poll's voting page your invitees see.</p>
+
+    <div class="space-y-6">
+      <!-- Logo -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Logo</label>
+        <div class="flex items-center gap-3">
+          <div id="brand-logo-thumb" class="w-16 h-16 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
+            <i data-lucide="image" class="w-5 h-5 text-gray-300"></i>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <div class="flex gap-2">
+              <label class="flex items-center gap-1.5 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-3 py-2 rounded-xl transition-all cursor-pointer">
+                <i data-lucide="upload" class="w-4 h-4"></i> Upload
+                <input type="file" id="brand-logo-input" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" class="hidden" onchange="handleLogoFile(this)">
+              </label>
+              <button type="button" id="brand-logo-remove" onclick="removeBrandLogo()" style="display:none"
+                class="flex items-center gap-1.5 text-sm text-gray-500 border border-gray-200 hover:bg-gray-50 px-3 py-2 rounded-xl transition-all">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> Remove
+              </button>
+            </div>
+            <p class="text-xs text-gray-400">PNG, JPG, GIF, WEBP, or SVG — up to ~150KB.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Color -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Accent Color</label>
+        <div class="flex items-center gap-3">
+          <input type="color" id="brand-color-input" value="#2563eb" oninput="onBrandColorInput(this.value)"
+            class="w-12 h-12 rounded-xl border border-gray-200 bg-white cursor-pointer p-1 shrink-0">
+          <input type="text" id="brand-color-hex" value="#2563eb" maxlength="7" oninput="onBrandColorHex(this.value)"
+            class="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 bg-white font-mono">
+          <button type="button" onclick="resetBrandColor()" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Reset</button>
+        </div>
+      </div>
+
+      <!-- Live preview -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Preview</label>
+        <p class="text-xs text-gray-400 mb-2">How the top of your voting page will look to invitees.</p>
+        <div class="border border-gray-200 rounded-2xl overflow-hidden">
+          <div id="brand-preview-banner" class="flex items-center gap-3 px-4 py-3" style="background:#2563eb">
+            <div id="brand-preview-logo-wrap" class="hidden bg-white/95 rounded-lg px-2 py-1.5">
+              <img id="brand-preview-logo" alt="" class="h-6 w-auto block" src="">
+            </div>
+            <span id="brand-preview-fallback" class="text-white font-semibold text-sm">Your logo &amp; color here</span>
+          </div>
+          <div class="bg-white px-4 py-3">
+            <div class="text-sm font-semibold text-gray-900">Team kickoff call</div>
+            <div class="text-xs text-gray-500 mt-0.5">Pick the times that work for you</div>
+            <button type="button" id="brand-preview-cta" class="mt-3 text-xs font-semibold text-white px-3 py-2 rounded-lg" style="background:#2563eb">Submit Vote</button>
+          </div>
+        </div>
+      </div>
+
+      <p id="branding-error" class="text-red-500 text-sm min-h-5"></p>
+      <button id="branding-save-btn" onclick="saveBranding()"
+        class="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all">
+        Save branding
+      </button>
+    </div>
+  </div>
+</div>
+
 
 <script>
 // ─────────────────────────────────────────────────────────
@@ -575,9 +657,10 @@ async function checkAuth() {
 }
 
 function updateNavButtons() {
-  document.getElementById('nav-mypolls-btn').style.display = isAdmin ? 'inline-flex' : 'none';
-  document.getElementById('nav-login-btn').style.display   = isAdmin ? 'none' : 'inline-flex';
-  document.getElementById('nav-logout-btn').style.display  = isAdmin ? 'inline-flex' : 'none';
+  document.getElementById('nav-mypolls-btn').style.display  = isAdmin ? 'inline-flex' : 'none';
+  document.getElementById('nav-branding-btn').style.display = isAdmin ? 'inline-flex' : 'none';
+  document.getElementById('nav-login-btn').style.display    = isAdmin ? 'none' : 'inline-flex';
+  document.getElementById('nav-logout-btn').style.display   = isAdmin ? 'inline-flex' : 'none';
 }
 
 function showLoginView(message) {
@@ -705,6 +788,137 @@ function openPollFromDashboard(id) {
 }
 
 // ────────────────────────────────────────────────────
+// BRANDING (Phase 6)
+// ────────────────────────────────────────────────────
+const DEFAULT_BRAND_COLOR = '#2563eb';
+const MAX_LOGO_BYTES = 150 * 1024; // client-side cap; server enforces its own
+let brandLogo  = null; // data: URI or null
+let brandColor = null; // hex or null
+
+async function goToBranding() {
+  if (!isAdmin) { showLoginView('Log in to manage your branding.'); return; }
+  showView('branding');
+  history.pushState({}, '', '/branding');
+  await loadBranding();
+}
+
+async function loadBranding() {
+  const err = document.getElementById('branding-error');
+  err.textContent = '';
+  try {
+    const res = await fetch('/api/branding');
+    if (res.status === 401) { isAdmin = false; updateNavButtons(); showLoginView(); return; }
+    const data = await res.json();
+    brandLogo  = data.logo || null;
+    brandColor = data.color || null;
+  } catch {
+    brandLogo = null; brandColor = null;
+  }
+  const color = brandColor || DEFAULT_BRAND_COLOR;
+  document.getElementById('brand-color-input').value = color;
+  document.getElementById('brand-color-hex').value   = color;
+  updateBrandPreview();
+}
+
+function handleLogoFile(input) {
+  const err = document.getElementById('branding-error');
+  err.textContent = '';
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const okTypes = ['image/png','image/jpeg','image/gif','image/webp','image/svg+xml'];
+  if (!okTypes.includes(file.type)) {
+    err.textContent = 'Logo must be a PNG, JPG, GIF, WEBP, or SVG image.';
+    input.value = ''; return;
+  }
+  if (file.size > MAX_LOGO_BYTES) {
+    err.textContent = 'That logo is too large — keep it under ~150KB.';
+    input.value = ''; return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => { brandLogo = reader.result; updateBrandPreview(); };
+  reader.onerror = () => { err.textContent = 'Could not read that file — try another.'; };
+  reader.readAsDataURL(file);
+  input.value = ''; // allow re-selecting the same file later
+}
+
+function removeBrandLogo() {
+  brandLogo = null;
+  updateBrandPreview();
+}
+
+function onBrandColorInput(hex) {
+  brandColor = hex;
+  document.getElementById('brand-color-hex').value = hex;
+  updateBrandPreview();
+}
+
+function onBrandColorHex(hex) {
+  const v = hex.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+    brandColor = v.toLowerCase();
+    document.getElementById('brand-color-input').value = brandColor;
+    updateBrandPreview();
+  }
+}
+
+function resetBrandColor() {
+  brandColor = null;
+  document.getElementById('brand-color-input').value = DEFAULT_BRAND_COLOR;
+  document.getElementById('brand-color-hex').value   = DEFAULT_BRAND_COLOR;
+  updateBrandPreview();
+}
+
+function updateBrandPreview() {
+  const color = brandColor || DEFAULT_BRAND_COLOR;
+  const banner = document.getElementById('brand-preview-banner');
+  const cta    = document.getElementById('brand-preview-cta');
+  banner.style.background = color;
+  cta.style.background = color;
+
+  const logoWrap = document.getElementById('brand-preview-logo-wrap');
+  const logoImg  = document.getElementById('brand-preview-logo');
+  const fallback = document.getElementById('brand-preview-fallback');
+  const thumb    = document.getElementById('brand-logo-thumb');
+  const removeBtn = document.getElementById('brand-logo-remove');
+
+  if (brandLogo) {
+    logoImg.src = brandLogo;
+    logoWrap.classList.remove('hidden');
+    fallback.classList.add('hidden');
+    thumb.innerHTML = `<img src="${brandLogo}" alt="" class="w-full h-full object-contain">`;
+    removeBtn.style.display = 'inline-flex';
+  } else {
+    logoWrap.classList.add('hidden');
+    fallback.classList.remove('hidden');
+    thumb.innerHTML = '<i data-lucide="image" class="w-5 h-5 text-gray-300"></i>';
+    removeBtn.style.display = 'none';
+    renderIcons();
+  }
+}
+
+async function saveBranding() {
+  const err = document.getElementById('branding-error');
+  const btn = document.getElementById('branding-save-btn');
+  err.textContent = '';
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await fetch('/api/branding', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ logo: brandLogo, color: brandColor })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { isAdmin = false; updateNavButtons(); showLoginView(); return; }
+    if (!res.ok) throw new Error(data.error || 'Could not save branding.');
+    showToast('Branding saved!');
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save branding';
+  }
+}
+
+// ────────────────────────────────────────────────────
 // ROUTING
 // ────────────────────────────────────────────────────
 async function init() {
@@ -727,6 +941,9 @@ async function init() {
   } else if (path === '/dashboard') {
     if (isAdmin) { showView('dashboard'); loadDashboard(); }
     else         { showLoginView(); }
+  } else if (path === '/branding') {
+    if (isAdmin) { showView('branding'); loadBranding(); }
+    else         { showLoginView(); }
   } else if (pollId) {
     currentPollId = pollId;
     showView('poll');
@@ -737,7 +954,7 @@ async function init() {
 }
 
 function showView(name) {
-  if (name !== 'poll') stopPollRefresh();
+  if (name !== 'poll') { stopPollRefresh(); document.documentElement.style.removeProperty('--brand'); }
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
   window.scrollTo(0, 0);
@@ -1287,10 +1504,20 @@ async function loadPoll(id, opts = {}) {
 // POLL PAGE — RENDER (dispatcher)
 // ────────────────────────────────────────────────────
 function renderPoll() {
+  applyBrandTheme(currentPoll);
   if (currentPoll.type === 'question')     { renderQuestionPoll(); return; }
   if (currentPoll.type === 'rsvp')         { renderRsvpPoll(); return; }
   if (currentPoll.type === 'availability') { renderAvailabilityPoll(); return; }
   renderSchedulePoll();
+}
+
+// Apply (or clear) the owner's brand accent color for the poll being viewed.
+// Sets the --brand CSS var; falling back to the :root default keeps unbranded
+// polls pixel-identical.
+function applyBrandTheme(poll) {
+  const color = poll && poll.branding && poll.branding.color;
+  if (color) document.documentElement.style.setProperty('--brand', color);
+  else       document.documentElement.style.removeProperty('--brand');
 }
 
 // ────────────────────────────────────────────────────
@@ -1480,7 +1707,7 @@ function renderRsvpVoteForm(poll) {
     ${renderVoterNameField(poll)}
     <div class="flex gap-2 mb-4" id="rsvp-btns">${mk('yes','Yes','check')}${mk('maybe','Maybe','help-circle')}${mk('no','No','x')}</div>
     <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
-    <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
+    <button class="flex items-center justify-center gap-2 w-full py-2.5 brand-cta bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
       id="vote-btn" onclick="submitRsvpVote()">
       <i data-lucide="send" class="w-4 h-4"></i> Submit Response
     </button>`;
@@ -1661,7 +1888,7 @@ function renderAvailabilityVoteForm(poll, tz) {
       </div>
     </div>
     <p id="vote-error" class="text-red-500 text-sm mt-3 mb-3 min-h-5"></p>
-    <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
+    <button class="flex items-center justify-center gap-2 w-full py-2.5 brand-cta bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
       id="vote-btn" onclick="submitAvailabilityVote()">
       <i data-lucide="send" class="w-4 h-4"></i> Submit Availability
     </button>`;
@@ -1805,7 +2032,18 @@ function renderPollHeader(poll, deadlineLine) {
         <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
        </button>`
     : '';
+  // Branded banner (Phase 6): the organizer's logo on a strip in their accent
+  // color, shown to everyone viewing the poll. Only rendered when a logo is set;
+  // the accent color alone still themes the CTA via --brand.
+  const brandBanner = (poll.branding && poll.branding.logo)
+    ? `<div class="flex items-center gap-3 px-4 py-3 mb-5 rounded-2xl" style="background:var(--brand)">
+         <div class="bg-white/95 rounded-lg px-2 py-1.5 inline-flex shrink-0">
+           <img src="${esc(poll.branding.logo)}" alt="Organizer logo" class="h-6 w-auto block max-w-[160px] object-contain">
+         </div>
+       </div>`
+    : '';
   return `
+    ${brandBanner}
     <div class="mb-6">
       <div id="poll-title-display">
         <div class="flex items-start gap-1.5">
@@ -2042,7 +2280,7 @@ function renderQuestionVoteForm(poll) {
     ${renderVoterNameField(poll)}
     <div class="space-y-2 mb-4" id="rc-options">${optionsHTML}</div>
     <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
-    <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
+    <button class="flex items-center justify-center gap-2 w-full py-2.5 brand-cta bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
       id="vote-btn" onclick="submitQuestionVote()">
       <i data-lucide="send" class="w-4 h-4"></i> Submit Vote
     </button>`;
@@ -2363,7 +2601,7 @@ function renderVoteForm(poll, tz) {
     </div>
     <div class="space-y-4 mb-4" id="vote-slots">${slotsHTML}</div>
     <p id="vote-error" class="text-red-500 text-sm mb-3 min-h-5"></p>
-    <button class="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
+    <button class="flex items-center justify-center gap-2 w-full py-2.5 brand-cta bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-60"
       id="vote-btn" onclick="submitVote()">
       <i data-lucide="send" class="w-4 h-4"></i> Submit Vote
     </button>`;

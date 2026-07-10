@@ -160,10 +160,18 @@ This is the named daily pain in the positioning doc: chasing the one unresponsiv
 
 The positioning decision (`fb46184`) named custom branding as *the* thing that justifies Pro pricing north of $5/mo — Pro launched cheap specifically because this doesn't exist yet. Building it is the unlock for revisiting the $15–20/mo target, not just a nice-to-have.
 
-- [ ] Light branding controls for Pro (logo/color on the voting page a client sees).
-- [ ] Minimal settings surface to support the above (logo upload, color picker) — not the full "toggle every feature" nav from the backlog; that's premature until there are enough toggleable features to justify it (see Phase 7).
+- [x] Light branding controls (logo/color on the voting page a client sees). Account-level (one brand per user, applied to all their polls — matches the agency→client wedge), stored in Postgres: `users.brand_logo` (base64 `data:` URI, ~150KB cap) + `users.brand_color` (hex). No object storage — backed up with the DB, dodges the `fly storage`/Tigris footgun. On the voting page: a banner (logo on a white chip over a strip in the accent color) via the shared `renderPollHeader` so all 4 poll types get it, plus the accent color on the primary "Submit Vote" CTA. Color applied via a `--brand` CSS var that defaults to the app's blue, so an unbranded poll is pixel-identical (verified: branded CTA `#db2777`, unbranded falls back to `#2563eb`, no banner).
+- [x] Minimal settings surface — a dedicated **Branding** view (nav button, login-gated) with logo upload (file→data URL, client- and server-side type + size validation), a native color picker synced to a hex field, a live preview, and save via `GET`/`PATCH /api/branding`. Deliberately just branding, not the full "toggle every feature" nav (that's Phase 7).
 
-**Acceptance:** a Pro user can set a logo/color that shows on their voting pages; revisit Pro pricing once this is live.
+**Gating decision (2026-07-10):** branding is *defined* as a Pro feature, but billing/plan-enforcement is parked on the `billing` branch (off the mainline until Phase 9), and no production user can become Pro yet. So branding ships **ungated** on the mainline now — the `plan==='pro'` gate gets added at Phase 9 alongside the poll-cap and availability gates, keeping *all* plan-policy with billing and the mainline billing-free. Interim cost of free users getting branding is ~zero pre-launch. **Added to the Phase 9 checklist: gate branding behind Pro when billing merges.**
+
+**Price raise:** deferred, not code here — the actual $5→$15–20 change lives with the Stripe price on the `billing` branch and takes effect at Phase 9. Revisit the number now that branding (the anchor feature) exists.
+
+**One bug found and fixed during verification:** the global `express.json({ limit: '16kb' })` body cap would have rejected any realistic logo (a ~40KB image base64-encodes well past 16KB) with an ugly 413 HTML page *before* the branding route's own validator ran. Fixed by routing `PATCH /api/branding` through a dedicated 512kb JSON parser while every other endpoint stays at the tight 16kb. Verified a ~40KB logo now saves (200) while oversize (>200KB) still rejects gracefully with a JSON error.
+
+**Verified locally 2026-07-10** against the dev server: set logo + color, confirmed the banner + accent render on a real voting page and that the green confirmed/results elements are untouched (color scoped to banner + CTA only); confirmed an unbranded poll is pixel-identical to before (blue CTA, no banner); server-side validation rejects bad color, non-image logos, and oversize logos with friendly JSON errors; no console errors.
+
+**Acceptance:** a user can set a logo/color that shows on their voting pages (✅); revisit Pro pricing once this is live (pending — it's a number/decision tied to the Phase 9 billing go-live). Pro-gating the feature is deferred to Phase 9 by the decision above.
 
 ### Phase 7 — Agency relationship features
 
@@ -195,6 +203,7 @@ The actual build is already done (Phase 3, verified locally on 2026-07-09) — t
 
 - [ ] `git checkout main && git merge billing` — reconcile billing against everything built in Phases 6–8 (resolve conflicts once, with all real code present). Push `main`, then fast-forward `dev`.
 - [ ] Re-verify the Checkout → webhook → plan-flip round trip still works after the merge (nothing in Phases 6–8 should touch billing code, but confirm before going live).
+- [ ] **Gate Phase 6 branding behind Pro.** Branding shipped ungated on the mainline (Phase 6) because no one could be Pro pre-billing; when billing merges, add the `plan==='pro'` check to the branding UI/routes alongside the poll-cap and availability gates so it becomes a real Pro-tier feature.
 - [ ] Set real Fly secrets: `STRIPE_SECRET_KEY` (live), `STRIPE_WEBHOOK_SECRET` (from a production webhook endpoint, not `stripe listen`), `STRIPE_PRICE_ID` (a live-mode price, not the test-mode one created 2026-07-09).
 - [ ] Run `scripts/grandfather-existing-users.js` once, right before/at cutover, so existing users (including Brady's own real polls) land on `plan='pro'` instead of getting capped.
 - [ ] `fly deploy`, then verify prod: confirm the billing page renders, and — carefully, since this now touches real money — run one real low-stakes Checkout + cancellation to confirm the live webhook path before telling any actual customer about Pro.

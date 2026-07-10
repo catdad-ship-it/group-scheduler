@@ -8,6 +8,12 @@ CREATE TABLE IF NOT EXISTS users (
   plan        TEXT NOT NULL DEFAULT 'free'
 );
 
+-- Phase 6 (branding): account-level logo + accent color shown on the voting
+-- page a client sees. Logo is a size-capped base64 data: URI stored inline
+-- (no object storage); color is a hex string. Both nullable = no branding.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS brand_logo TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS brand_color TEXT;
+
 CREATE TABLE IF NOT EXISTS magic_link_tokens (
   token       TEXT PRIMARY KEY,
   email       TEXT NOT NULL,

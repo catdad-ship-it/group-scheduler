@@ -118,7 +118,15 @@ function generateSlotKey() {
   return 's' + crypto.randomBytes(4).toString('hex');
 }
 
-app.use(express.json({ limit: '16kb' }));
+// Most endpoints take tiny JSON bodies, kept at a tight 16kb. The branding
+// PATCH is the exception — it carries a base64 logo — so it gets a larger cap
+// (still bounded; the route validates the logo size itself).
+const jsonSmall = express.json({ limit: '16kb' });
+const jsonLarge = express.json({ limit: '512kb' });
+app.use((req, res, next) => {
+  if (req.method === 'PATCH' && req.path === '/api/branding') return jsonLarge(req, res, next);
+  return jsonSmall(req, res, next);
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── FIELD VALIDATORS (shared by create + edit) ───────────────────────────────
@@ -261,6 +269,11 @@ function serializePoll(poll, slots, votes, isOwner) {
     expectedVoters: poll.expected_voters,
     confirmedSlot: poll.confirmed_slot,
     isOwner: !!isOwner,
+    // Owner's account-level branding (Phase 6), shown on the voting page.
+    // Joined in by the loaders; absent on polls whose owner set no branding.
+    branding: (poll.brand_logo || poll.brand_color)
+      ? { logo: poll.brand_logo || null, color: poll.brand_color || null }
+      : null,
     slots: slots.map(s => {
       const slot = { id: s.slot_key };
       if (s.datetime !== null) slot.datetime = Number(s.datetime);
@@ -278,7 +291,12 @@ function serializePoll(poll, slots, votes, isOwner) {
 }
 
 async function loadPollById(id, viewerUserId) {
-  const pollRes = await pool.query('SELECT * FROM polls WHERE id = $1', [id]);
+  const pollRes = await pool.query(
+    `SELECT p.*, u.brand_logo, u.brand_color
+     FROM polls p JOIN users u ON u.id = p.owner_id
+     WHERE p.id = $1`,
+    [id]
+  );
   const poll = pollRes.rows[0];
   if (!poll) return null;
   const [slotsRes, votesRes] = await Promise.all([
@@ -395,6 +413,66 @@ app.get('/api/admin/polls', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
   const polls = await loadPollsByOwner(user.id);
   res.json(polls);
+});
+
+// ─── BRANDING (Phase 6) ────────────────────────────────────────────────────
+// Account-level logo + accent color shown on the voting page a client sees.
+// Not plan-gated on the mainline — the Pro gate is added with billing at Phase 9.
+
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+// data:image/<type>;base64,<payload> — the only shape we accept for a logo.
+const LOGO_DATA_URI_RE = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/]+={0,2}$/;
+const MAX_LOGO_CHARS = 200 * 1024; // ~200KB of base64 (~150KB raw) — plenty for a logo
+
+function validateBrandColor(color) {
+  if (color === undefined || color === null || color === '') return { value: null };
+  if (typeof color !== 'string' || !HEX_COLOR_RE.test(color.trim())) {
+    return { error: 'Color must be a hex value like #2563eb.' };
+  }
+  return { value: color.trim().toLowerCase() };
+}
+
+function validateBrandLogo(logo) {
+  if (logo === undefined || logo === null || logo === '') return { value: null };
+  if (typeof logo !== 'string') return { error: 'Invalid logo.' };
+  if (logo.length > MAX_LOGO_CHARS) return { error: 'Logo is too large — keep it under ~150KB.' };
+  if (!LOGO_DATA_URI_RE.test(logo)) return { error: 'Logo must be a PNG, JPG, GIF, WEBP, or SVG image.' };
+  return { value: logo };
+}
+
+// Get the current user's branding (for the settings page)
+app.get('/api/branding', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  const r = await pool.query('SELECT brand_logo, brand_color FROM users WHERE id = $1', [user.id]);
+  const row = r.rows[0] || {};
+  res.json({ logo: row.brand_logo || null, color: row.brand_color || null });
+});
+
+// Update the current user's branding
+app.patch('/api/branding', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+
+  const { logo, color } = req.body;
+  const fields = [];
+  if (logo !== undefined) {
+    const r = validateBrandLogo(logo);
+    if (r.error) return res.status(400).json({ error: r.error });
+    fields.push(['brand_logo', r.value]);
+  }
+  if (color !== undefined) {
+    const r = validateBrandColor(color);
+    if (r.error) return res.status(400).json({ error: r.error });
+    fields.push(['brand_color', r.value]);
+  }
+  if (!fields.length) return res.json({ success: true });
+
+  const setClauses = fields.map(([col], i) => `${col} = $${i + 1}`);
+  const values = fields.map(([, val]) => val);
+  values.push(user.id);
+  await pool.query(`UPDATE users SET ${setClauses.join(', ')} WHERE id = $${values.length}`, values);
+  res.json({ success: true });
 });
 
 // Create a new poll (requires an account)
