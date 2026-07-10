@@ -152,6 +152,8 @@ This is the named daily pain in the positioning doc: chasing the one unresponsiv
 
 **Not gated by plan** — available on both Free and Pro, consistent with Phase 4. No per-poll/user "mute notifications" toggle yet (always-on); easy to add later if it gets noisy.
 
+**Merged to `main` and deployed to production, 2026-07-10.** The production `expected_voters` migration was run *before* the code deploy (at explicit request) — confirmed zero live polls had any expected voters set at the time, so no real data was at risk, but it did briefly leave the still-deployed old code writing to a column shape it didn't expect (any create/edit that set expected voters would have 500'd). Closed within the same session by reconstructing the Phase 5 diff onto `main` (isolated via `git diff <dev-commit>^ <dev-commit>`, confirmed billing-free, applied clean) and deploying. Both `https://huddlr.co` and `https://group-scheduler.fly.dev` verified reachable (200) post-deploy with no error-level logs. Full UI smoke test against the live *authenticated* flow (create/nudge/vote) wasn't done against production itself — that would require a real login-email round trip, which isn't available in this environment; local verification above plus the clean diff/deploy is what backs this.
+
 **Acceptance:** an organizer gets notified of new responses without checking back (✅); an unresponsive voter can be nudged with one click (✅, when an email is on file for them); the best slot is surfaced automatically instead of requiring manual grid-reading (✅, now also in email bodies, not just the results page).
 
 ### Phase 6 — Branding & the price raise
