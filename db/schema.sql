@@ -31,10 +31,34 @@ CREATE TABLE IF NOT EXISTS polls (
   description     TEXT NOT NULL DEFAULT '',
   created_at      TIMESTAMPTZ NOT NULL,
   deadline        BIGINT,
-  expected_voters TEXT[] NOT NULL DEFAULT '{}',
+  expected_voters JSONB NOT NULL DEFAULT '[]',
   confirmed_slot  TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_polls_owner_id ON polls(owner_id);
+
+-- Phase 5 (chase-the-voter): expected_voters becomes structured [{name, email?}]
+-- instead of bare names, so nudges/reminders have somewhere to send.
+-- Guarded so it's safe to re-run against a table that's already converted.
+DO $$
+BEGIN
+  IF (SELECT data_type FROM information_schema.columns
+      WHERE table_name = 'polls' AND column_name = 'expected_voters') = 'ARRAY' THEN
+    -- ALTER ... TYPE USING can't contain a correlated aggregate subquery, so
+    -- convert via a temp column + UPDATE instead of a direct type change.
+    ALTER TABLE polls ADD COLUMN expected_voters_new JSONB;
+    UPDATE polls SET expected_voters_new = (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object('name', v)), '[]'::jsonb)
+      FROM unnest(expected_voters) AS v
+    );
+    ALTER TABLE polls DROP COLUMN expected_voters;
+    ALTER TABLE polls RENAME COLUMN expected_voters_new TO expected_voters;
+    ALTER TABLE polls ALTER COLUMN expected_voters SET NOT NULL;
+    ALTER TABLE polls ALTER COLUMN expected_voters SET DEFAULT '[]';
+  END IF;
+END $$;
+
+-- Phase 5: dedupes the deadline-reminder sweep so it only fires once per poll.
+ALTER TABLE polls ADD COLUMN IF NOT EXISTS deadline_reminder_sent_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS slots (
   id            BIGSERIAL PRIMARY KEY,
