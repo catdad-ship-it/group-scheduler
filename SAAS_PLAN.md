@@ -99,15 +99,19 @@ Small things that came up right after Phase 1+2 shipped, done before moving on t
 
 ## Phase 3 — Billing (Stripe)
 
-Don't build this until Phases 1–2 are live and someone's using it.
+- [x] Define tiers (revised from the original draft after discussion). **Free** = 3 active polls (no `confirmed_slot` and not past `deadline`), schedule/question/rsvp types only. **Pro = $5/mo** (launch-price, well below the original $15–20 positioning target — intentional, revisit once there are real payers) = unlimited active polls + the `availability` poll type. Deadline reminders and custom branding stay Phase 4 — they don't exist as features yet, so Pro isn't gated on them at launch.
+- [x] Stripe Checkout for upgrade (`POST /api/billing/checkout`, subscription mode).
+- [x] Webhook that flips `user.plan` on `checkout.session.completed`, `customer.subscription.deleted`, and `invoice.payment_failed` (`POST /api/webhooks/stripe`).
+- [x] Enforce limits at poll-creation time — 402 with an upsell message, checked both client- and server-side.
+- [x] Billing settings page: current plan, upgrade button (free) or manage-billing button via Stripe portal (pro).
+- [x] Grandfathering: `scripts/grandfather-existing-users.js` sets every pre-existing user to `plan='pro'` — written but **not yet run**; run it once at prod cutover, right before this ships.
+- [x] Downgrade behavior: cancelling/failed payment flips to `free` but never touches existing polls — only blocks *creating new* polls (or using `availability`) while over the cap.
 
-- [ ] Define tiers. Draft: **Free** = 3 active polls, schedule/question/rsvp types. **Pro (~$15–20/mo)** = unlimited polls, availability grids, deadline reminders, custom branding (see Positioning below — branding is the anchor feature for the agency wedge, priced accordingly).
-- [ ] Stripe Checkout for upgrade.
-- [ ] Webhook that flips `user.plan` on successful payment / cancellation.
-- [ ] Enforce limits at poll-creation time (block/upsell when a free user hits the cap).
-- [ ] Billing settings page: current plan, manage/cancel via Stripe portal.
+**Verified locally (2026-07-09):** Stripe CLI installed and logged in to a test-mode sandbox account, created the `Huddlr Pro` product + $5/mo price, ran `stripe listen --forward-to localhost:3010/api/webhooks/stripe` for a local `whsec_...`. Full round trip exercised with a real test-mode Checkout session and card `4242 4242 4242 4242`: `checkout.session.completed` flipped the dev user (`niemanbrady@gmail.com`) to `plan='pro'` with `stripe_customer_id`/`stripe_subscription_id` set, billing page correctly showed the Pro state; cancelling the subscription (exercising the same `customer.subscription.deleted` path the billing portal uses) flipped the user back to `plan='free'` and the UI reverted to the upgrade prompt. One hiccup along the way: the dev server happened to be down for the first checkout completion, so that webhook 200'd only after `stripe events resend <id>` was used to redeliver it once the server was back up — worth noting Stripe's own retry schedule would have eventually redelivered it anyway.
 
-**Acceptance:** a free user hits the cap and gets an upgrade prompt; paying flips them to Pro and unlocks features; cancelling downgrades them at period end.
+**Acceptance:** a free user hits the cap and gets an upgrade prompt (✅ verified locally); paying flips them to Pro and unlocks features (✅ verified locally, 2026-07-09); cancelling downgrades them (✅ verified locally, 2026-07-09 — tested by cancelling the subscription immediately via the Stripe API, which fires `customer.subscription.deleted` and correctly flips the user back to `free`. Note: the actual billing-portal "cancel" button defaults to scheduling cancellation for period end rather than cancelling immediately, so `customer.subscription.deleted` — and the downgrade — wouldn't fire until the period elapses in that flow; the webhook handler itself was verified, but that specific portal-driven timing wasn't).
+
+**Deploy timing (deliberately deferred):** the build above is done and verified locally, but merging to `main` and deploying is intentionally pushed to the end of the roadmap — see **Phase 9**. Decision (2026-07-09): don't turn on billing for real until the product is more robust (Phases 4–8), not right after it's built.
 
 ## Phase 4+ — Backlog, prioritized (2026-07-09)
 
@@ -116,7 +120,7 @@ Below supersedes the old one-shot "Phase 4" draft. Source: a product-review back
 ### Before/alongside Phase 4 — not a phase, just don't skip these
 
 - [x] **Mobile QA pass on the availability-grid drag-to-paint.** Verified 2026-07-09: the core interaction already used unified Pointer Events (not raw mouse events) and `.avail-cell` already had `touch-action: none` scoped correctly in the stylesheet — both right. Found and fixed one real bug: the grid container (`#avail-grid`) had a *redundant* inline `touch-action:none` that over-applied to the header row and time-label column too, which would've blocked native horizontal swipe-scroll on any poll wide enough to overflow a phone screen (a 7-day poll needs ~389px, wider than an iPhone SE's 375px). Removed the inline override; `.avail-cell`'s own `touch-action: none` still correctly locks out scroll during an actual paint-drag. Re-verified the paint interaction itself with simulated touch-type Pointer Events after the fix — still paints correctly across a drag. Caveat: a headless browser can't fully simulate the OS-level native scroll gesture itself, so the scroll-restoration specifically wasn't observed end-to-end, only the CSS precondition for it (`touch-action: auto` on non-cell elements) — worth a real-device check next time Brady has a phone in hand.
-- [x] **Automated DB backups + basic uptime monitoring.** Done 2026-07-10 (on the `group-scheduler-db`/Fly infrastructure side, not app code — nothing to merge here, noted for the record). Daily volume snapshots were already running (5-day retention); added WAL-based continuous backups on top (7-day recovery window) and bumped snapshot retention to 14 days. Stood up self-hosted Uptime Kuma (its own Fly app, `huddlr-uptime`) watching huddlr.co, alerting via Resend SMTP — verified with a real forced-down/up test.
+- [x] **Automated DB backups + basic uptime monitoring.** Done 2026-07-10. **Backups:** `group-scheduler-db`'s daily volume snapshots were already running (5-day retention) — confirmed via `fly volumes snapshots list`, not just assumed. Added WAL-based continuous backups on top (`fly postgres backup enable`, 7-day recovery window, base backup every 24h) for point-in-time recovery instead of once-daily granularity; required scaling the Postgres VM from 256MB→512MB (~$1.30/mo) since backups need ≥512MB. Also bumped volume snapshot retention 5→14 days. **Monitoring:** self-hosted Uptime Kuma as its own Fly app (`huddlr-uptime`, separate app/volume from production — avoids UptimeRobot's free-tier ToS ban on commercial use), watching `https://huddlr.co` every 60s. Alerts via email over Resend SMTP (dedicated `uptime-kuma-smtp` API key, not the production one) to `niemanbrady@gmail.com`. Verified with a real forced-down test (bad URL, 0 retries) — both the down alert and the recovery alert landed correctly. **Mistake made and fixed along the way:** an early attempt to script around a Tigris ToS prompt (`fly storage create` without realizing it auto-attaches to the app in the current directory) accidentally added stray AWS/Tigris secrets to the *production* `group-scheduler` app and triggered two unplanned rolling restarts. Caught immediately, secrets removed, bucket destroyed, prod health double-checked (both huddlr.co and the fly.dev URL returned 200 throughout) — no lasting impact, but worth remembering: never run `fly storage create` (or similar app-context-sensitive commands) without an explicit `-a` or from a directory with no `fly.toml` at all.
 
 ### Phase 4 — Close the confirm loop
 
@@ -147,6 +151,8 @@ This is the named daily pain in the positioning doc: chasing the one unresponsiv
 **Verified locally 2026-07-10** against the dev server (Resend's console-log fallback, no real send needed to inspect bodies): new-response notification fired with the correct best-slot line on a fresh vote; nudge button appeared only for the voter with an email on file and disappeared/blocked correctly on cooldown (429); deadline-reminder sweep fired once when a poll's deadline was set within the 24h window (tested via a server restart, since the sweep also runs at boot) and correctly did *not* re-fire on a second restart; editing the deadline via PATCH correctly reset the reminder-sent flag; the voter self-select dropdown (from Phase 1) kept working against the new structured voter shape.
 
 **Not gated by plan** — available on both Free and Pro, consistent with Phase 4. No per-poll/user "mute notifications" toggle yet (always-on); easy to add later if it gets noisy.
+
+**Merged to `main` and deployed to production, 2026-07-10.** The production `expected_voters` migration was run *before* the code deploy (at explicit request) — confirmed zero live polls had any expected voters set at the time, so no real data was at risk, but it did briefly leave the still-deployed old code writing to a column shape it didn't expect (any create/edit that set expected voters would have 500'd). Closed within the same session by reconstructing the Phase 5 diff onto `main` (isolated via `git diff <dev-commit>^ <dev-commit>`, confirmed billing-free, applied clean) and deploying. Both `https://huddlr.co` and `https://group-scheduler.fly.dev` verified reachable (200) post-deploy with no error-level logs. Full UI smoke test against the live *authenticated* flow (create/nudge/vote) wasn't done against production itself — that would require a real login-email round trip, which isn't available in this environment; local verification above plus the clean diff/deploy is what backs this.
 
 **Acceptance:** an organizer gets notified of new responses without checking back (✅); an unresponsive voter can be nudged with one click (✅, when an email is on file for them); the best slot is surfaced automatically instead of requiring manual grid-reading (✅, now also in email bodies, not just the results page).
 
@@ -181,7 +187,19 @@ Biggest lift (external OAuth/services), least proven demand. Do only once repeat
 
 **Acceptance:** a teammate's real calendar availability populates a poll without manual entry; a Slack channel gets notified on vote/confirm; SMS reminders can be opted into per poll.
 
-**Not yet merged here:** Phase 3 (billing) and its go-live (Phase 9 on `dev`) — deliberately held back until this branch is more robust and Brady explicitly asks for it. See `dev`'s copy of this doc for that detail once it's ready to merge.
+### Phase 9 — Ship billing to production
+
+The actual build is already done (Phase 3, verified locally on 2026-07-09) — this phase is only the go-live step, and it's deliberately last. Decision (2026-07-09): hold off turning on real payments until Phases 4–8 have made the product more robust, rather than monetizing it right after the billing code was written.
+
+**Where the code lives (as of 2026-07-10):** the billing implementation is parked on the dedicated **`billing` branch** (branched off `main` after Phase 5) — deliberately *not* on `dev` or `main`, so it cannot reach production through a normal deploy. `dev` and `main` are now identical and billing-free; new work (Phases 6–8) flows `dev → main` as an ordinary fast-forward. An immutable snapshot of the pre-split history is tagged `archive/dev-pre-billing-split`. To go live, bring billing back in as its own step:
+
+- [ ] `git checkout main && git merge billing` — reconcile billing against everything built in Phases 6–8 (resolve conflicts once, with all real code present). Push `main`, then fast-forward `dev`.
+- [ ] Re-verify the Checkout → webhook → plan-flip round trip still works after the merge (nothing in Phases 6–8 should touch billing code, but confirm before going live).
+- [ ] Set real Fly secrets: `STRIPE_SECRET_KEY` (live), `STRIPE_WEBHOOK_SECRET` (from a production webhook endpoint, not `stripe listen`), `STRIPE_PRICE_ID` (a live-mode price, not the test-mode one created 2026-07-09).
+- [ ] Run `scripts/grandfather-existing-users.js` once, right before/at cutover, so existing users (including Brady's own real polls) land on `plan='pro'` instead of getting capped.
+- [ ] `fly deploy`, then verify prod: confirm the billing page renders, and — carefully, since this now touches real money — run one real low-stakes Checkout + cancellation to confirm the live webhook path before telling any actual customer about Pro.
+
+**Acceptance:** a real credit card can upgrade a real account to Pro in production and the webhook correctly flips their plan; existing pre-cutover users were grandfathered and weren't accidentally capped.
 
 ---
 
