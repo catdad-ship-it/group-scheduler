@@ -190,6 +190,8 @@ Bigger effort (new data model for grouping polls by client), deepens the wedge r
 
 **Acceptance:** a client's whole poll history is visible from one place (✅, owner-only hub); an organizer can preview the voter view before sharing (✅); a poll can be duplicated without recreating slots/voters (✅).
 
+**Shipped to production 2026-07-10** (`f0eb6b8`, clean `dev → main` fast-forward). Prod schema (`clients` table + `polls.client_id`) applied via interactive `fly postgres connect` in Brady's terminal *before* the deploy (headless piped psql still doesn't work — the interactive PTY doesn't consume piped stdin), verified present, then `fly deploy`. Post-deploy: both domains 200, `/api/clients` and `/api/admin/polls` (the client-JOIN path) return 401 not 500, no error logs. Note: the base Phase-7 UI + the dashboard client-management/reassign additions were visually verified by Brady on the dev server (including the `askPrompt` fix for the suppressed native prompt); the authenticated click-through on *production* itself wasn't done (needs a real login-email round trip unavailable in-session), same caveat as Phase 6.
+
 ### Phase 8 — Integrations
 
 Biggest lift (external OAuth/services), least proven demand. Do only once repeat usage from real agency customers justifies the investment — not speculatively.
