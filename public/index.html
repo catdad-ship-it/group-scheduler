@@ -391,9 +391,9 @@
       </div>
       <div>
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Expected Voters <span class="font-normal normal-case text-gray-400">(optional)</span></label>
-        <input type="text" id="poll-expected-voters" placeholder="Alice, Bob, Carol" maxlength="500"
+        <input type="text" id="poll-expected-voters" placeholder="Alice <alice@client.com>, Bob, Carol" maxlength="2000"
           class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
-        <p class="text-xs text-gray-500 mt-1">Comma-separated names. Shows who still needs to vote on the results page.</p>
+        <p class="text-xs text-gray-500 mt-1">Comma-separated names. Add an email in &lt;angle brackets&gt; to enable one-click nudges and deadline reminders for that person.</p>
       </div>
     </div>
 
@@ -791,6 +791,26 @@ function friendlyTzName(tz) {
     .formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || tz;
 }
 
+// ────────────────────────────────────────────────────
+// EXPECTED VOTERS — "Name <email>, Name2" text input <-> [{name, email?}]
+// ────────────────────────────────────────────────────
+function parseExpectedVotersInput(str) {
+  if (!str || !str.trim()) return [];
+  return str.split(',').map(entry => entry.trim()).filter(Boolean).map(entry => {
+    const match = entry.match(/^(.*?)<([^<>]+)>\s*$/);
+    if (match) {
+      const name = match[1].trim();
+      const email = match[2].trim();
+      return email ? { name, email } : { name };
+    }
+    return { name: entry };
+  }).filter(v => v.name);
+}
+
+function serializeExpectedVoters(voters) {
+  return (voters || []).map(v => v.email ? `${v.name} <${v.email}>` : v.name).join(', ');
+}
+
 function formatSlot(utcMs, tz) {
   const d = new Date(utcMs);
   const dateStr = new Intl.DateTimeFormat('en-US', {
@@ -1151,8 +1171,8 @@ async function createPoll() {
   const deadlineInput = document.getElementById('poll-deadline').value;
   const deadline = deadlineInput ? new Date(deadlineInput).getTime() : null;
 
-  const evInput = document.getElementById('poll-expected-voters')?.value.trim();
-  const expectedVoters = evInput ? evInput.split(',').map(n => n.trim()).filter(Boolean) : [];
+  const evInput = document.getElementById('poll-expected-voters')?.value || '';
+  const expectedVoters = parseExpectedVotersInput(evInput);
 
   const isEditing = !!editingPollId;
 
@@ -1397,7 +1417,7 @@ function renderVoterNameField(poll) {
         class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
     </div>`;
   }
-  const options = voters.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  const options = voters.map(v => `<option value="${esc(v.name)}">${esc(v.name)}</option>`).join('');
   return `
     <div class="mb-4">
       <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
@@ -1831,7 +1851,7 @@ function backToPollSummary() {
 function renderWhoHasntVoted(poll) {
   if (!poll.expectedVoters || poll.expectedVoters.length === 0) return '';
   const votedNames = new Set(poll.votes.map(v => v.name.toLowerCase()));
-  const missing = poll.expectedVoters.filter(n => !votedNames.has(n.toLowerCase()));
+  const missing = poll.expectedVoters.filter(v => !votedNames.has(v.name.toLowerCase()));
   if (missing.length === 0) {
     return `
       <div class="flex items-center gap-2 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 mt-4">
@@ -1839,6 +1859,15 @@ function renderWhoHasntVoted(poll) {
         <span class="text-sm text-green-700 font-medium">Everyone has voted!</span>
       </div>`;
   }
+  const chip = v => {
+    const nudgeBtn = (poll.isOwner && v.email)
+      ? `<button onclick="nudgeVoter('${esc(v.name)}')" title="Send a reminder email to ${esc(v.email)}"
+           aria-label="Nudge ${esc(v.name)}" class="text-amber-500 hover:text-amber-700 transition-colors">
+           <i data-lucide="bell" class="w-3 h-3"></i>
+         </button>`
+      : '';
+    return `<span class="flex items-center gap-1 text-xs bg-white border border-amber-200 text-amber-700 pl-2.5 ${nudgeBtn ? 'pr-1.5' : 'pr-2.5'} py-1 rounded-full">${esc(v.name)}${nudgeBtn}</span>`;
+  };
   return `
     <div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5 mt-4">
       <div class="flex items-center gap-2 mb-2">
@@ -1846,9 +1875,22 @@ function renderWhoHasntVoted(poll) {
         <span class="text-sm font-semibold text-amber-800">Waiting on (${missing.length})</span>
       </div>
       <div class="flex flex-wrap gap-1.5">
-        ${missing.map(n => `<span class="text-xs bg-white border border-amber-200 text-amber-700 px-2.5 py-1 rounded-full">${esc(n)}</span>`).join('')}
+        ${missing.map(chip).join('')}
       </div>
     </div>`;
+}
+
+async function nudgeVoter(name) {
+  try {
+    const res = await fetch(`/api/polls/${currentPollId}/nudge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voterName: name })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Could not send nudge.');
+    showToast(`Nudge sent to ${name}.`);
+  } catch (err) { showToast('Error: ' + err.message); }
 }
 
 // ────────────────────────────────────────────────────
@@ -2813,7 +2855,7 @@ function startEditPoll(poll) {
   if (poll.deadline) {
     document.getElementById('poll-deadline').value = localDatetimeValue(new Date(poll.deadline));
   }
-  document.getElementById('poll-expected-voters').value = (poll.expectedVoters || []).join(', ');
+  document.getElementById('poll-expected-voters').value = serializeExpectedVoters(poll.expectedVoters);
 
   populateSlotBuilderFrom(poll);
 

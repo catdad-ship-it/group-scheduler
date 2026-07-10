@@ -52,10 +52,10 @@ function clearSessionCookie(res) {
   res.setHeader('Set-Cookie', 'session=; Path=/; HttpOnly; Max-Age=0');
 }
 
-async function sendMagicLinkEmail(email, link) {
+async function sendEmail({ to, subject, html, from }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.log(`\n🔗 Magic link for ${email}:\n${link}\n`);
+    console.log(`\n✉️  Email to ${to} — ${subject}\n${html}\n`);
     return;
   }
   const res = await fetch('https://api.resend.com/emails', {
@@ -64,18 +64,28 @@ async function sendMagicLinkEmail(email, link) {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      from: 'Huddle <login@huddlr.co>',
-      to: email,
-      subject: 'Your Huddle login link',
-      html: `<p>Click the link below to log in to Huddle:</p><p><a href="${link}">${link}</a></p><p>This link expires in 15 minutes. If you didn't request it, you can ignore this email.</p>`
-    })
+    body: JSON.stringify({ from: from || 'Huddle <notifications@huddlr.co>', to, subject, html })
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Resend API error ${res.status}: ${body}`);
   }
 }
+
+async function sendMagicLinkEmail(email, link) {
+  await sendEmail({
+    to: email,
+    from: 'Huddle <login@huddlr.co>',
+    subject: 'Your Huddle login link',
+    html: `<p>Click the link below to log in to Huddle:</p><p><a href="${link}">${link}</a></p><p>This link expires in 15 minutes. If you didn't request it, you can ignore this email.</p>`
+  });
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 
 // ─── RATE LIMITING ────────────────────────────────────────────────────────────
 
@@ -139,11 +149,21 @@ function validateExpectedVoters(expectedVoters) {
   if (expectedVoters === undefined) return { value: [] };
   if (!Array.isArray(expectedVoters)) return { error: 'expectedVoters must be an array.' };
   if (expectedVoters.length > 50) return { error: 'Too many expected voters (max 50).' };
-  return {
-    value: expectedVoters
-      .filter(n => typeof n === 'string' && n.trim())
-      .map(n => n.trim().slice(0, 100))
-  };
+  const value = [];
+  for (const entry of expectedVoters) {
+    // Accept a bare name string (legacy shape) or a {name, email?} object.
+    const raw = typeof entry === 'string' ? { name: entry } : (entry && typeof entry === 'object' ? entry : null);
+    if (!raw || typeof raw.name !== 'string' || !raw.name.trim()) continue;
+    const voter = { name: raw.name.trim().slice(0, 100) };
+    if (raw.email !== undefined && raw.email !== null && raw.email !== '') {
+      if (typeof raw.email !== 'string' || raw.email.length > 254 || !EMAIL_RE.test(raw.email.trim())) {
+        return { error: `Invalid email for ${voter.name}.` };
+      }
+      voter.email = raw.email.trim().toLowerCase();
+    }
+    value.push(voter);
+  }
+  return { value };
 }
 
 function validateSlots(pollType, slots) {
@@ -184,6 +204,47 @@ function validateSlots(pollType, slots) {
     }
   }
   return { value: slots.map(s => ({ label: String(s.label).trim() })) };
+}
+
+// ─── EMAIL: SMART-SUGGESTED SLOT ──────────────────────────────────────────────
+// Mirrors the "best match" scoring already used client-side for schedule/
+// availability results, so notification emails can name a slot without the
+// organizer having to open the poll and read the grid.
+
+function computeBestSlot(pollType, slotRows, voteRows) {
+  if (!['schedule', 'availability'].includes(pollType) || voteRows.length === 0) return null;
+  const total = voteRows.length;
+  const scores = {};
+  slotRows.forEach(s => { scores[s.slot_key] = { yes: 0, maybe: 0 }; });
+  voteRows.forEach(v => {
+    slotRows.forEach(s => {
+      const r = (v.responses || {})[s.slot_key];
+      if (r === 'yes') scores[s.slot_key].yes++;
+      if (r === 'maybe') scores[s.slot_key].maybe++;
+    });
+  });
+  // Schedule: availability (yes+maybe) first, tiebreak on definite yes. Availability grid: yes only.
+  const scoreOf = key => pollType === 'availability'
+    ? scores[key].yes
+    : (scores[key].yes + scores[key].maybe) * 1000 + scores[key].yes;
+
+  let best = null;
+  for (const s of slotRows) {
+    const sc = scoreOf(s.slot_key);
+    if (sc > 0 && (!best || sc > best.score)) {
+      best = { slot: s, score: sc, yes: scores[s.slot_key].yes, maybe: scores[s.slot_key].maybe };
+    }
+  }
+  if (!best) return null;
+  return { label: formatSlotForEmail(best.slot), yes: best.yes, maybe: best.maybe, total };
+}
+
+function formatSlotForEmail(slot) {
+  if (slot.datetime === null || slot.datetime === undefined) return slot.label || 'an option';
+  const dt = new Date(Number(slot.datetime));
+  return dt.toLocaleString('en-US', {
+    timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+  }) + ' UTC';
 }
 
 // ─── DB HELPERS ──────────────────────────────────────────────────────────────
@@ -248,7 +309,7 @@ async function createPoll(poll, ownerId) {
     await client.query(
       `INSERT INTO polls (id, owner_id, type, title, creator_name, description, created_at, deadline, expected_voters)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [poll.id, ownerId, poll.type, poll.title, poll.creatorName, poll.description, new Date(poll.createdAt), poll.deadline, poll.expectedVoters]
+      [poll.id, ownerId, poll.type, poll.title, poll.creatorName, poll.description, new Date(poll.createdAt), poll.deadline, JSON.stringify(poll.expectedVoters)]
     );
     for (let i = 0; i < poll.slots.length; i++) {
       const s = poll.slots[i];
@@ -399,7 +460,11 @@ app.post('/api/polls/:id/vote', async (req, res) => {
     return res.status(400).json({ error: 'Invalid timezone.' });
   }
 
-  const pollRes = await pool.query('SELECT id, type, deadline FROM polls WHERE id = $1', [req.params.id]);
+  const pollRes = await pool.query(
+    `SELECT p.id, p.type, p.deadline, p.title, u.email AS owner_email
+     FROM polls p JOIN users u ON u.id = p.owner_id WHERE p.id = $1`,
+    [req.params.id]
+  );
   const poll = pollRes.rows[0];
   if (!poll) return res.status(404).json({ error: 'Poll not found.' });
 
@@ -426,15 +491,101 @@ app.post('/api/polls/:id/vote', async (req, res) => {
     }
   }
 
+  const trimmedName = name.trim();
+  const existingRes = await pool.query(
+    'SELECT 1 FROM votes WHERE poll_id = $1 AND name_lower = lower($2)',
+    [req.params.id, trimmedName]
+  );
+  const isNewVoter = existingRes.rowCount === 0;
+
   await pool.query(
     `INSERT INTO votes (poll_id, name, timezone, responses, submitted_at)
      VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (poll_id, name_lower) DO UPDATE
      SET name = EXCLUDED.name, timezone = EXCLUDED.timezone, responses = EXCLUDED.responses, submitted_at = EXCLUDED.submitted_at`,
-    [req.params.id, name.trim(), timezone.trim(), JSON.stringify(sanitized), new Date()]
+    [req.params.id, trimmedName, timezone.trim(), JSON.stringify(sanitized), new Date()]
   );
 
   res.json({ success: true });
+
+  if (isNewVoter) {
+    notifyNewResponse(poll, trimmedName).catch(e => console.error('notifyNewResponse failed:', e));
+  }
+});
+
+// Email the poll owner that a new response came in — fire-and-forget, never
+// allowed to affect the vote response itself.
+async function notifyNewResponse(poll, voterName) {
+  if (!poll.owner_email) return;
+  const [slotsRes, votesRes] = await Promise.all([
+    pool.query('SELECT slot_key, datetime, end_datetime, label FROM slots WHERE poll_id = $1', [poll.id]),
+    pool.query('SELECT name, responses FROM votes WHERE poll_id = $1', [poll.id])
+  ]);
+  const best = computeBestSlot(poll.type, slotsRes.rows, votesRes.rows);
+  const bestLine = best
+    ? `<p>Best time so far: <strong>${escHtml(best.label)}</strong> (${best.yes} yes${best.maybe ? `, ${best.maybe} maybe` : ''} of ${best.total}).</p>`
+    : '';
+  const pollUrl = `${APP_BASE_URL}/?poll=${poll.id}`;
+  await sendEmail({
+    to: poll.owner_email,
+    subject: `New response on "${poll.title}"`,
+    html: `<p><strong>${escHtml(voterName)}</strong> just responded to your poll "${escHtml(poll.title)}".</p>${bestLine}<p><a href="${pollUrl}">View responses</a></p>`
+  });
+}
+
+// One-click nudge: email a specific expected voter who hasn't responded yet (owner only)
+const nudgeAttempts = new Map(); // `${pollId}:${nameLower}` -> last-sent timestamp
+const NUDGE_COOLDOWN_MS = 15 * 60 * 1000;
+
+app.post('/api/polls/:id/nudge', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+
+  const { voterName } = req.body;
+  if (typeof voterName !== 'string' || !voterName.trim()) {
+    return res.status(400).json({ error: 'Missing voterName.' });
+  }
+
+  const pollRes = await pool.query(
+    'SELECT id, title, type, expected_voters FROM polls WHERE id = $1 AND owner_id = $2',
+    [req.params.id, user.id]
+  );
+  const poll = pollRes.rows[0];
+  if (!poll) return res.status(404).json({ error: 'Poll not found.' });
+
+  const trimmed = voterName.trim();
+  const voter = (poll.expected_voters || []).find(v => v.name.toLowerCase() === trimmed.toLowerCase());
+  if (!voter || !voter.email) {
+    return res.status(400).json({ error: 'No email on file for this person.' });
+  }
+
+  const key = `${poll.id}:${voter.name.toLowerCase()}`;
+  const last = nudgeAttempts.get(key);
+  if (last && Date.now() - last < NUDGE_COOLDOWN_MS) {
+    return res.status(429).json({ error: 'Already nudged recently — try again in a few minutes.' });
+  }
+  nudgeAttempts.set(key, Date.now());
+
+  try {
+    const [slotsRes, votesRes] = await Promise.all([
+      pool.query('SELECT slot_key, datetime, end_datetime, label FROM slots WHERE poll_id = $1', [poll.id]),
+      pool.query('SELECT name, responses FROM votes WHERE poll_id = $1', [poll.id])
+    ]);
+    const best = computeBestSlot(poll.type, slotsRes.rows, votesRes.rows);
+    const bestLine = best
+      ? `<p>Right now the best-fitting time is <strong>${escHtml(best.label)}</strong>.</p>`
+      : '';
+    const pollUrl = `${APP_BASE_URL}/?poll=${poll.id}`;
+    await sendEmail({
+      to: voter.email,
+      subject: `Reminder: ${poll.title}`,
+      html: `<p>Hi ${escHtml(voter.name)}, just a friendly nudge — you haven't responded to "${escHtml(poll.title)}" yet.</p>${bestLine}<p><a href="${pollUrl}">Respond here</a></p><p style="color:#888;font-size:12px">You're receiving this because the organizer invited you to respond to a scheduling poll on Huddle.</p>`
+    });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Failed to send nudge email:', e);
+    res.status(502).json({ error: 'Could not send the nudge email. Try again in a moment.' });
+  }
 });
 
 // Confirm a slot as the final time (owner only)
@@ -547,11 +698,13 @@ app.patch('/api/polls/:id', async (req, res) => {
     const r = validateDeadline(deadline);
     if (r.error) return res.status(400).json({ error: r.error });
     fields.push(['deadline', r.value]);
+    // A deliberate deadline edit gets its own fresh reminder window.
+    fields.push(['deadline_reminder_sent_at', null]);
   }
   if (expectedVoters !== undefined) {
     const r = validateExpectedVoters(expectedVoters);
     if (r.error) return res.status(400).json({ error: r.error });
-    fields.push(['expected_voters', r.value]);
+    fields.push(['expected_voters', JSON.stringify(r.value)]);
   }
   let resolvedSlots = null;
   if (slots !== undefined) {
@@ -611,6 +764,67 @@ app.delete('/api/polls/:id/votes/:voterName', async (req, res) => {
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// ─── DEADLINE REMINDERS (organizer-only, per Phase 5) ─────────────────────────
+// In-process sweep — no cron infra needed at this scale. The atomic
+// UPDATE...RETURNING claims each poll exactly once even if this ever runs on
+// more than one machine, so it's safe without any distributed lock.
+
+const DEADLINE_REMINDER_WINDOW_MS = 24 * 60 * 60 * 1000; // remind once deadline is within 24h
+const REMINDER_SWEEP_INTERVAL_MS  = 30 * 60 * 1000;      // check every 30 min
+
+async function sendDeadlineReminder(poll) {
+  try {
+    const ownerRes = await pool.query('SELECT email FROM users WHERE id = $1', [poll.owner_id]);
+    const ownerEmail = ownerRes.rows[0]?.email;
+    if (!ownerEmail) return;
+
+    const [slotsRes, votesRes] = await Promise.all([
+      pool.query('SELECT slot_key, datetime, end_datetime, label FROM slots WHERE poll_id = $1', [poll.id]),
+      pool.query('SELECT name, responses FROM votes WHERE poll_id = $1', [poll.id])
+    ]);
+    const votedNames = new Set(votesRes.rows.map(v => v.name.toLowerCase()));
+    const missing = (poll.expected_voters || []).filter(v => !votedNames.has(v.name.toLowerCase())).map(v => v.name);
+    const best = computeBestSlot(poll.type, slotsRes.rows, votesRes.rows);
+
+    const missingLine = missing.length ? `<p>Still waiting on: ${missing.map(escHtml).join(', ')}.</p>` : '';
+    const bestLine = best
+      ? `<p>Best time so far: <strong>${escHtml(best.label)}</strong> (${best.yes} yes${best.maybe ? `, ${best.maybe} maybe` : ''} of ${best.total}).</p>`
+      : '';
+    const pollUrl = `${APP_BASE_URL}/?poll=${poll.id}`;
+    await sendEmail({
+      to: ownerEmail,
+      subject: `"${poll.title}" closes soon`,
+      html: `<p>Your poll "${escHtml(poll.title)}" closes within 24 hours.</p>${missingLine}${bestLine}<p><a href="${pollUrl}">View poll</a></p>`
+    });
+  } catch (e) {
+    console.error(`Failed to send deadline reminder for poll ${poll.id}:`, e);
+  }
+}
+
+async function runDeadlineReminderSweep() {
+  try {
+    const now = Date.now();
+    const pollsRes = await pool.query(
+      `UPDATE polls SET deadline_reminder_sent_at = now()
+       WHERE confirmed_slot IS NULL
+         AND deadline IS NOT NULL
+         AND deadline > $1
+         AND deadline <= $2
+         AND deadline_reminder_sent_at IS NULL
+       RETURNING id, owner_id, title, type, expected_voters`,
+      [now, now + DEADLINE_REMINDER_WINDOW_MS]
+    );
+    for (const poll of pollsRes.rows) {
+      await sendDeadlineReminder(poll);
+    }
+  } catch (e) {
+    console.error('Deadline reminder sweep failed:', e);
+  }
+}
+
+setInterval(runDeadlineReminderSweep, REMINDER_SWEEP_INTERVAL_MS);
+runDeadlineReminderSweep();
 
 // ─── START ───────────────────────────────────────────────────────────────────
 
