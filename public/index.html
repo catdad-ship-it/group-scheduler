@@ -202,6 +202,19 @@
   </div>
 </div>
 
+<!-- ── PROMPT DIALOG (custom, replaces window.prompt) ─────── -->
+<div id="prompt-overlay" class="fixed inset-0 z-[1100] hidden items-center justify-center bg-gray-900/40 px-5" role="dialog" aria-modal="true" aria-labelledby="prompt-title">
+  <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+    <h2 id="prompt-title" class="text-base font-bold text-gray-900 mb-3">Enter a value</h2>
+    <input id="prompt-input" type="text" maxlength="100"
+      class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400 mb-4">
+    <div class="flex gap-3">
+      <button id="prompt-cancel" class="flex-1 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all">Cancel</button>
+      <button id="prompt-ok" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════════════════════════════════════════════════════
      HOME VIEW
 ═════════════════════════════════════════════════════ -->
@@ -405,6 +418,22 @@
           class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
         <p class="text-xs text-gray-500 mt-1">Comma-separated names. Add an email in &lt;angle brackets&gt; to enable one-click nudges and deadline reminders for that person.</p>
       </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Client <span class="font-normal normal-case text-gray-400">(optional)</span></label>
+        <select id="poll-client" onchange="onClientSelectChange(this.value)"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all">
+          <option value="">No client</option>
+          <option value="__new__">+ New client…</option>
+        </select>
+        <div id="new-client-row" class="hidden mt-2 flex gap-2">
+          <input type="text" id="new-client-name" placeholder="Client name" maxlength="100"
+            class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();createClientInline();}">
+          <button type="button" onclick="createClientInline()"
+            class="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all whitespace-nowrap">Add</button>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Group this poll under a client to see all their polls in one place.</p>
+      </div>
     </div>
 
     <p id="create-error" class="text-red-500 text-sm mt-4 min-h-5"></p>
@@ -539,8 +568,23 @@
       </button>
     </div>
     <p class="text-sm text-gray-500 mb-6">All polls you've created</p>
+    <div id="dashboard-clients" class="mb-6"></div>
     <div id="dashboard-list" class="space-y-2">
-      <div class="text-center py-12 text-gray-500 text-sm">Loading…</div>
+      <div class="animate-pulse space-y-2" aria-hidden="true">
+        <div class="bg-white border border-gray-100 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3">
+          <div class="min-w-0 flex-1"><div class="h-4 bg-gray-100 rounded w-2/3 mb-2"></div><div class="h-3 bg-gray-100 rounded w-1/2"></div></div>
+          <div class="h-6 w-16 bg-gray-100 rounded-full shrink-0"></div>
+        </div>
+        <div class="bg-white border border-gray-100 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3">
+          <div class="min-w-0 flex-1"><div class="h-4 bg-gray-100 rounded w-1/2 mb-2"></div><div class="h-3 bg-gray-100 rounded w-2/5"></div></div>
+          <div class="h-6 w-16 bg-gray-100 rounded-full shrink-0"></div>
+        </div>
+        <div class="bg-white border border-gray-100 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3">
+          <div class="min-w-0 flex-1"><div class="h-4 bg-gray-100 rounded w-3/5 mb-2"></div><div class="h-3 bg-gray-100 rounded w-1/3"></div></div>
+          <div class="h-6 w-16 bg-gray-100 rounded-full shrink-0"></div>
+        </div>
+      </div>
+      <span class="sr-only">Loading your polls…</span>
     </div>
   </div>
 </div>
@@ -617,6 +661,20 @@
   </div>
 </div>
 
+<!-- ════════════════════════════════════════════════════
+     CLIENT HUB VIEW (Phase 7)
+═════════════════════════════════════════════════════ -->
+<div id="view-client" class="view">
+  <div class="max-w-lg mx-auto px-5 pt-8 pb-24">
+    <button onclick="goToDashboard()" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-all mb-4">
+      <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> All polls
+    </button>
+    <div id="client-hub-content">
+      <div class="text-center py-12 text-gray-500 text-sm">Loading…</div>
+    </div>
+  </div>
+</div>
+
 
 <script>
 // ─────────────────────────────────────────────────────────
@@ -632,6 +690,8 @@ function renderIcons() {
 let currentPollId     = null;
 let currentPoll       = null;
 let voteResponses     = {};
+let allClients        = []; // cache of the owner's clients, for card reassign selects
+let currentClientId   = null; // id of the client hub currently open (for refresh after reassign)
 let isAdmin           = false;
 let createPollType    = 'schedule';
 let prefillVoterName  = null;
@@ -641,6 +701,7 @@ let pollViewMode       = 'full'; // 'full' | 'summary' — summary is the read-o
 let editingPollId      = null; // set while the create view is being used to edit an existing poll
 let showFullDetails    = false; // voter opted past the post-confirmation "locked in" screen to see full results
 let pollRefreshTimer   = null; // interval id for the real-time results poll, active while a poll view is open
+let previewAsVoter     = false; // owner previewing the poll exactly as a non-owner invitee sees it
 
 // ────────────────────────────────────────────────────
 // AUTH / NAV STATE
@@ -711,10 +772,24 @@ async function goToDashboard() {
   await loadDashboard();
 }
 
+const DASHBOARD_SKELETON = `
+  <div class="animate-pulse space-y-2" aria-hidden="true">
+    ${[['2/3','1/2'],['1/2','2/5'],['3/5','1/3']].map(([a,b]) => `
+      <div class="bg-white border border-gray-100 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3">
+        <div class="min-w-0 flex-1"><div class="h-4 bg-gray-100 rounded w-${a} mb-2"></div><div class="h-3 bg-gray-100 rounded w-${b}"></div></div>
+        <div class="h-6 w-16 bg-gray-100 rounded-full shrink-0"></div>
+      </div>`).join('')}
+  </div>
+  <span class="sr-only">Loading your polls…</span>`;
+
 async function loadDashboard() {
+  currentClientId = null;
   const list = document.getElementById('dashboard-list');
-  list.innerHTML = '<div class="text-center py-12 text-gray-500 text-sm">Loading…</div>';
+  list.innerHTML = DASHBOARD_SKELETON;
   try {
+    // Fetch clients first so the poll cards' reassign selects are populated.
+    await refreshClientsCache();
+    renderDashboardClients();
     const res = await fetch('/api/admin/polls');
     if (res.status === 401) {
       isAdmin = false;
@@ -732,52 +807,72 @@ async function loadDashboard() {
       renderIcons();
       return;
     }
-    list.innerHTML = polls.map(poll => {
-      const isConfirmed = !!poll.confirmedSlot;
-      const date = new Date(poll.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      const voteCount = poll.votes.length;
-      const typeMeta = {
-        question:     { icon: 'list-checks',    color: 'text-purple-500', label: 'Question' },
-        rsvp:         { icon: 'user-check',      color: 'text-teal-500',   label: 'RSVP' },
-        availability: { icon: 'calendar-range',  color: 'text-indigo-500', label: 'Availability' },
-        schedule:     { icon: 'calendar',        color: 'text-blue-500',   label: 'Schedule' }
-      }[poll.type] || { icon: 'calendar', color: 'text-blue-500', label: 'Schedule' };
-      const typeIcon  = `<i data-lucide="${typeMeta.icon}" class="w-3.5 h-3.5 ${typeMeta.color}"></i>`;
-      const typeLabel = typeMeta.label;
-      const badge = isConfirmed
-        ? `<span class="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full whitespace-nowrap">
-             <i data-lucide="check-circle" class="w-3 h-3"></i> Confirmed
-           </span>`
-        : `<span class="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full whitespace-nowrap">Open</span>`;
-      return `
-        <div class="bg-white border border-gray-100 hover:border-blue-200 hover:bg-blue-50 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 transition-all">
-          <div onclick="openPollFromDashboard('${poll.id}')" class="min-w-0 flex-1 cursor-pointer">
-            <div class="font-semibold text-sm text-gray-900 mb-0.5 truncate">${esc(poll.title)}</div>
-            <div class="flex items-center gap-2 text-xs text-gray-500">
-              ${typeIcon} ${typeLabel}
-              <span class="text-gray-200">·</span>
-              ${esc(date)}
-              <span class="text-gray-200">·</span>
-              <i data-lucide="users" class="w-3 h-3"></i> ${voteCount}
-            </div>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            ${badge}
-            <button onclick="clonePoll(event,'${poll.id}')" title="Clone poll" aria-label="Clone poll"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-400 hover:bg-blue-50 rounded-lg transition-all">
-              <i data-lucide="copy" class="w-4 h-4"></i>
-            </button>
-            <button onclick="deletePoll(event,'${poll.id}')" title="Delete poll" aria-label="Delete poll"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
-          </div>
-        </div>`;
-    }).join('');
+    list.innerHTML = polls.map(poll => pollCardHTML(poll)).join('');
     renderIcons();
   } catch {
     list.innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Error loading polls — please refresh.</p>';
   }
+}
+
+async function refreshClientsCache() {
+  try {
+    const res = await fetch('/api/clients');
+    allClients = res.ok ? await res.json() : [];
+  } catch { allClients = []; }
+  return allClients;
+}
+
+// One poll row, reused by the dashboard and the client hub. Shows a compact
+// client-reassign <select> whenever the owner has any clients.
+function pollCardHTML(poll) {
+  const isConfirmed = !!poll.confirmedSlot;
+  const date = new Date(poll.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const voteCount = poll.votes.length;
+  const typeMeta = {
+    question:     { icon: 'list-checks',    color: 'text-purple-500', label: 'Question' },
+    rsvp:         { icon: 'user-check',      color: 'text-teal-500',   label: 'RSVP' },
+    availability: { icon: 'calendar-range',  color: 'text-indigo-500', label: 'Availability' },
+    schedule:     { icon: 'calendar',        color: 'text-blue-500',   label: 'Schedule' }
+  }[poll.type] || { icon: 'calendar', color: 'text-blue-500', label: 'Schedule' };
+  const typeIcon  = `<i data-lucide="${typeMeta.icon}" class="w-3.5 h-3.5 ${typeMeta.color}"></i>`;
+  const badge = isConfirmed
+    ? `<span class="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full whitespace-nowrap">
+         <i data-lucide="check-circle" class="w-3 h-3"></i> Confirmed
+       </span>`
+    : `<span class="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full whitespace-nowrap">Open</span>`;
+  // Reassign control — a subtle select showing the poll's current client.
+  const clientSelect = allClients.length
+    ? `<select onclick="event.stopPropagation()" onchange="reassignPollClient('${poll.id}', this.value)" title="Assign to client"
+        class="text-xs text-gray-600 bg-white border border-gray-200 rounded-lg pl-1.5 pr-1 py-1 max-w-[130px] hover:border-gray-300">
+        <option value=""${poll.clientId == null ? ' selected' : ''}>No client</option>
+        ${allClients.map(c => `<option value="${c.id}"${poll.clientId === c.id ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
+       </select>`
+    : '';
+  return `
+    <div class="bg-white border border-gray-100 hover:border-blue-200 hover:bg-blue-50 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 transition-all">
+      <div onclick="openPollFromDashboard('${poll.id}')" class="min-w-0 flex-1 cursor-pointer">
+        <div class="font-semibold text-sm text-gray-900 mb-0.5 truncate">${esc(poll.title)}</div>
+        <div class="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+          ${typeIcon} ${typeMeta.label}
+          <span class="text-gray-200">·</span>
+          ${esc(date)}
+          <span class="text-gray-200">·</span>
+          <i data-lucide="users" class="w-3 h-3"></i> ${voteCount}
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        ${clientSelect}
+        ${badge}
+        <button onclick="clonePoll(event,'${poll.id}')" title="Clone poll" aria-label="Clone poll"
+          class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-400 hover:bg-blue-50 rounded-lg transition-all">
+          <i data-lucide="copy" class="w-4 h-4"></i>
+        </button>
+        <button onclick="deletePoll(event,'${poll.id}')" title="Delete poll" aria-label="Delete poll"
+          class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>`;
 }
 
 function openPollFromDashboard(id) {
@@ -785,6 +880,185 @@ function openPollFromDashboard(id) {
   history.pushState({}, '', `/?poll=${id}`);
   showView('poll');
   loadPoll(id, { summary: true });
+}
+
+// ────────────────────────────────────────────────────
+// CLIENTS — dashboard strip + hub (Phase 7)
+// ────────────────────────────────────────────────────
+// Renders the dashboard Clients section from the allClients cache. Always shown
+// (even with no clients) so "+ New client" is always available; each client can
+// be opened (hub), renamed, or deleted inline.
+function renderDashboardClients() {
+  const box = document.getElementById('dashboard-clients');
+  if (!box) return;
+  const addBtn = `<button onclick="createClientFromDashboard()"
+      class="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-all">
+      <i data-lucide="plus" class="w-3.5 h-3.5"></i> New client
+    </button>`;
+  const header = `<div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Clients</span>
+      ${addBtn}
+    </div>`;
+  if (!allClients.length) {
+    box.innerHTML = header + `<p class="text-xs text-gray-400">No clients yet — group polls under a client to see them together.</p>`;
+    renderIcons();
+    return;
+  }
+  box.innerHTML = header + `
+    <div class="space-y-1.5">
+      ${allClients.map(c => `
+        <div class="flex items-center gap-2 bg-white border border-gray-100 rounded-xl px-3 py-2">
+          <button onclick="goToClient(${c.id})" class="flex items-center gap-1.5 min-w-0 flex-1 text-left group">
+            <i data-lucide="briefcase" class="w-3.5 h-3.5 text-gray-400 shrink-0"></i>
+            <span class="text-sm text-gray-700 truncate group-hover:text-blue-600">${esc(c.name)}</span>
+            <span class="text-xs text-gray-400 shrink-0">${c.pollCount} poll${c.pollCount !== 1 ? 's' : ''}</span>
+          </button>
+          <button onclick="renameClient(${c.id}, '${esc(c.name).replace(/'/g, "\\'")}')" title="Rename client" aria-label="Rename client"
+            class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all shrink-0">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+          </button>
+          <button onclick="deleteClient(${c.id}, '${esc(c.name).replace(/'/g, "\\'")}')" title="Delete client" aria-label="Delete client"
+            class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shrink-0">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>`).join('')}
+    </div>`;
+  renderIcons();
+}
+
+async function createClientFromDashboard() {
+  const name = await askPrompt('', { title: 'New client', okLabel: 'Add client', placeholder: 'Client name' });
+  if (name == null || !name.trim()) return;
+  try {
+    const res = await fetch('/api/clients', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() })
+    });
+    if (res.status === 401) { isAdmin = false; updateNavButtons(); showLoginView(); return; }
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not create client.');
+    showToast('Client added.');
+    await loadDashboard();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+// Reassign (or unassign) a poll's client from a poll-card select, then refresh
+// whichever view is open (dashboard or a client hub).
+async function reassignPollClient(pollId, value) {
+  try {
+    const res = await fetch(`/api/polls/${pollId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: value === '' ? null : Number(value) })
+    });
+    if (res.status === 401) { isAdmin = false; updateNavButtons(); showLoginView(); return; }
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not reassign.');
+    showToast('Client updated.');
+    if (currentClientId != null) await loadClient(currentClientId);
+    else await loadDashboard();
+  } catch (e) {
+    showToast('Error: ' + e.message);
+    if (currentClientId != null) await loadClient(currentClientId);
+    else await loadDashboard();
+  }
+}
+
+async function goToClient(id) {
+  if (!isAdmin) { showLoginView(); return; }
+  showView('client');
+  history.pushState({}, '', `/clients/${id}`);
+  await loadClient(id);
+}
+
+async function loadClient(id) {
+  currentClientId = Number(id);
+  const box = document.getElementById('client-hub-content');
+  box.innerHTML = '<div class="text-center py-12 text-gray-500 text-sm">Loading…</div>';
+  try {
+    // Populate the clients cache so the hub's poll cards can offer reassignment.
+    await refreshClientsCache();
+    const res = await fetch(`/api/clients/${id}`);
+    if (res.status === 401) { isAdmin = false; updateNavButtons(); showLoginView(); return; }
+    if (res.status === 404) {
+      box.innerHTML = '<p class="text-sm text-gray-500 py-8 text-center">Client not found.</p>';
+      return;
+    }
+    const data = await res.json();
+    renderClientHub(data);
+  } catch {
+    box.innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Error loading client — please refresh.</p>';
+  }
+}
+
+function renderClientHub(data) {
+  const box = document.getElementById('client-hub-content');
+  const now = Date.now();
+  const isActive = p => !p.confirmedSlot && (!p.deadline || p.deadline > now);
+  const active = data.polls.filter(isActive);
+  const closed = data.polls.filter(p => !isActive(p));
+
+  const section = (label, polls) => polls.length ? `
+    <div class="mb-6">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">${label} (${polls.length})</div>
+      <div class="space-y-2">${polls.map(p => pollCardHTML(p)).join('')}</div>
+    </div>` : '';
+
+  const emptyState = data.polls.length === 0
+    ? `<div class="text-center py-12 bg-gray-50 border border-gray-100 rounded-2xl">
+         <i data-lucide="inbox" class="w-8 h-8 text-gray-400 mx-auto mb-3"></i>
+         <p class="text-sm text-gray-500">No polls for this client yet.</p>
+       </div>`
+    : '';
+
+  box.innerHTML = `
+    <div class="flex items-start justify-between gap-3 mb-1">
+      <div class="flex items-center gap-2 min-w-0">
+        <i data-lucide="briefcase" class="w-5 h-5 text-gray-400 shrink-0"></i>
+        <h1 class="text-2xl font-bold text-gray-900 truncate">${esc(data.name)}</h1>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <button onclick="renameClient(${data.id}, '${esc(data.name).replace(/'/g, "\\'")}')" title="Rename client" aria-label="Rename client"
+          class="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all">
+          <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+        </button>
+        <button onclick="deleteClient(${data.id}, '${esc(data.name).replace(/'/g, "\\'")}')" title="Delete client" aria-label="Delete client"
+          class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+    <p class="text-sm text-gray-500 mb-5">${data.polls.length} poll${data.polls.length !== 1 ? 's' : ''} with this client</p>
+    <button onclick="startCreateForClient(${data.id})"
+      class="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 text-white px-3 py-2 rounded-xl hover:bg-blue-700 transition-all mb-6">
+      <i data-lucide="plus" class="w-4 h-4"></i> New poll for ${esc(data.name)}
+    </button>
+    ${section('Active', active)}
+    ${section('Confirmed / closed', closed)}
+    ${emptyState}`;
+  renderIcons();
+}
+
+async function renameClient(id, currentName) {
+  const name = await askPrompt('', { title: 'Rename client', okLabel: 'Save', defaultValue: currentName });
+  if (name == null || !name.trim() || name.trim() === currentName) return;
+  try {
+    const res = await fetch(`/api/clients/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() })
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Rename failed.');
+    showToast('Client renamed.');
+    await loadClient(id);
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+async function deleteClient(id, name) {
+  const ok = await askConfirm(`This removes the client "${name}". Its polls are kept, just no longer grouped.`, { title: 'Delete client?', okLabel: 'Delete' });
+  if (!ok) return;
+  try {
+    const res = await fetch(`/api/clients/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Delete failed.');
+    showToast('Client deleted.');
+    goToDashboard();
+  } catch (e) { showToast('Error: ' + e.message); }
 }
 
 // ────────────────────────────────────────────────────
@@ -944,6 +1218,10 @@ async function init() {
   } else if (path === '/branding') {
     if (isAdmin) { showView('branding'); loadBranding(); }
     else         { showLoginView(); }
+  } else if (path.startsWith('/clients/')) {
+    const cid = path.split('/')[2];
+    if (isAdmin && cid) { showView('client'); loadClient(cid); }
+    else                { showLoginView(); }
   } else if (pollId) {
     currentPollId = pollId;
     showView('poll');
@@ -954,7 +1232,7 @@ async function init() {
 }
 
 function showView(name) {
-  if (name !== 'poll') { stopPollRefresh(); document.documentElement.style.removeProperty('--brand'); }
+  if (name !== 'poll') { stopPollRefresh(); document.documentElement.style.removeProperty('--brand'); previewAsVoter = false; }
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
   window.scrollTo(0, 0);
@@ -968,10 +1246,20 @@ function startCreate(type) {
   }
   editingPollId = null;
   createPollType = type || 'schedule';
-  initCreateForm();
+  initCreateForm(pendingClientId ?? '');
+  pendingClientId = null;
   document.getElementById('create-btn').innerHTML = 'Create Poll <i data-lucide="arrow-right" class="w-4 h-4"></i>';
   showView('create');
   renderIcons();
+}
+
+// Start a new poll pre-assigned to a client (from the client hub). Stashes the
+// id so the home type-picker's startCreate() preselects it.
+let pendingClientId = null;
+function startCreateForClient(clientId) {
+  pendingClientId = clientId;
+  history.pushState({}, '', '/');
+  showView('home');
 }
 
 function goHome() {
@@ -1077,12 +1365,63 @@ const CREATE_COPY = {
   availability: { title: 'Availability Grid',sub: 'Pick the days and hours, then let everyone paint when they are free.', label: 'Poll Title', ph: 'e.g. Weekly sync, Study group…' }
 };
 
-function initCreateForm() {
+// ── Client selector (Phase 7) ───────────────────────────
+let clientsCache = [];
+
+async function loadClientsInto(selectedId) {
+  const sel = document.getElementById('poll-client');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/clients');
+    clientsCache = res.ok ? await res.json() : [];
+  } catch { clientsCache = []; }
+  const opts = clientsCache.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  sel.innerHTML = `<option value="">No client</option>${opts}<option value="__new__">+ New client…</option>`;
+  sel.value = (selectedId != null && selectedId !== '') ? String(selectedId) : '';
+}
+
+function onClientSelectChange(val) {
+  const row = document.getElementById('new-client-row');
+  if (val === '__new__') {
+    row.classList.remove('hidden');
+    document.getElementById('new-client-name').focus();
+  } else {
+    row.classList.add('hidden');
+  }
+}
+
+async function createClientInline() {
+  const input = document.getElementById('new-client-name');
+  const name = input.value.trim();
+  const err = document.getElementById('create-error');
+  if (!name) { input.focus(); return; }
+  try {
+    const res = await fetch('/api/clients', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { isAdmin = false; updateNavButtons(); showLoginView(); return; }
+    if (!res.ok) throw new Error(data.error || 'Could not create client.');
+    input.value = '';
+    await loadClientsInto(data.id);
+    document.getElementById('new-client-row').classList.add('hidden');
+  } catch (e) { err.textContent = e.message; }
+}
+
+function selectedClientId() {
+  const v = document.getElementById('poll-client')?.value;
+  return (v && v !== '__new__') ? Number(v) : null;
+}
+
+function initCreateForm(clientId = '') {
   document.getElementById('poll-title').value   = '';
   document.getElementById('poll-description').value = '';
   document.getElementById('poll-deadline').value = '';
   document.getElementById('poll-expected-voters').value = '';
   document.getElementById('create-error').textContent = '';
+  document.getElementById('new-client-row').classList.add('hidden');
+  loadClientsInto(clientId);
 
   const t = createPollType;
   const copy = CREATE_COPY[t] || CREATE_COPY.schedule;
@@ -1409,12 +1748,12 @@ async function createPoll() {
       ? await fetch(`/api/polls/${editingPollId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, description, slots, deadline, expectedVoters })
+          body: JSON.stringify({ title, description, slots, deadline, expectedVoters, clientId: selectedClientId() })
         })
       : await fetch('/api/polls', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, description, slots, type: createPollType, deadline, expectedVoters })
+          body: JSON.stringify({ title, description, slots, type: createPollType, deadline, expectedVoters, clientId: selectedClientId() })
         });
     if (res.status === 401) {
       isAdmin = false;
@@ -1473,6 +1812,7 @@ function goToPoll() {
 async function loadPoll(id, opts = {}) {
   pollViewMode = opts.summary ? 'summary' : 'full';
   showFullDetails = false;
+  previewAsVoter = false;
   const container = document.getElementById('poll-container');
   try {
     const res = await fetch(`/api/polls/${id}`);
@@ -1505,10 +1845,48 @@ async function loadPoll(id, opts = {}) {
 // ────────────────────────────────────────────────────
 function renderPoll() {
   applyBrandTheme(currentPoll);
-  if (currentPoll.type === 'question')     { renderQuestionPoll(); return; }
-  if (currentPoll.type === 'rsvp')         { renderRsvpPoll(); return; }
-  if (currentPoll.type === 'availability') { renderAvailabilityPoll(); return; }
-  renderSchedulePoll();
+
+  // Preview-as-voter: render exactly what a non-owner invitee sees by
+  // temporarily presenting the poll as not-owned for the (synchronous) render,
+  // then restoring the real poll. This hides every owner-only control faithfully
+  // without touching the many `poll.isOwner` checks scattered through the views.
+  const real = currentPoll;
+  const previewing = previewAsVoter && real && real.isOwner;
+  if (previewing) currentPoll = { ...real, isOwner: false };
+  try {
+    if (currentPoll.type === 'question')     { renderQuestionPoll(); }
+    else if (currentPoll.type === 'rsvp')    { renderRsvpPoll(); }
+    else if (currentPoll.type === 'availability') { renderAvailabilityPoll(); }
+    else                                     { renderSchedulePoll(); }
+  } finally {
+    currentPoll = real;
+  }
+  if (previewing) injectPreviewBar();
+}
+
+// A fixed bar telling the owner they're in voter-preview mode, with an exit.
+function injectPreviewBar() {
+  const container = document.getElementById('poll-container');
+  if (!container) return;
+  const bar = document.createElement('div');
+  bar.className = 'flex items-center justify-between gap-3 bg-gray-900 text-white rounded-2xl px-4 py-2.5 mb-5';
+  bar.innerHTML = `
+    <span class="flex items-center gap-2 text-sm font-medium">
+      <i data-lucide="eye" class="w-4 h-4"></i> Previewing as your invitees see it
+    </span>
+    <button onclick="exitVoterPreview()" class="text-xs font-semibold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap">Exit preview</button>`;
+  container.prepend(bar);
+  renderIcons();
+}
+
+function enterVoterPreview() {
+  previewAsVoter = true;
+  renderPoll();
+}
+
+function exitVoterPreview() {
+  previewAsVoter = false;
+  renderPoll();
 }
 
 // Apply (or clear) the owner's brand accent color for the poll being viewed.
@@ -2070,9 +2448,14 @@ function renderPollHeader(poll, deadlineLine) {
 function renderPollModeControl(poll, summaryMode) {
   if (!poll.isOwner) return '';
   return summaryMode
-    ? `<button onclick="startEditPoll(currentPoll)" class="flex items-center gap-2 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-4 py-2.5 rounded-xl transition-all mb-6">
-        <i data-lucide="pencil" class="w-4 h-4"></i> Edit Poll
-       </button>`
+    ? `<div class="flex flex-wrap items-center gap-2 mb-6">
+        <button onclick="startEditPoll(currentPoll)" class="flex items-center gap-2 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-4 py-2.5 rounded-xl transition-all">
+          <i data-lucide="pencil" class="w-4 h-4"></i> Edit Poll
+        </button>
+        <button onclick="enterVoterPreview()" class="flex items-center gap-2 text-sm font-semibold text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl transition-all">
+          <i data-lucide="eye" class="w-4 h-4"></i> Preview as voter
+        </button>
+       </div>`
     : `<button onclick="backToPollSummary()" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-all mb-4">
         <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back to summary
        </button>`;
@@ -3070,11 +3453,13 @@ async function clonePoll(e, pollId) {
     const poll = await res.json();
     editingPollId  = null;
     createPollType = poll.type;
-    initCreateForm();
+    initCreateForm(poll.clientId ?? '');
     document.getElementById('create-btn').innerHTML = 'Create Poll <i data-lucide="arrow-right" class="w-4 h-4"></i>';
 
     document.getElementById('poll-title').value       = poll.title + ' (copy)';
     document.getElementById('poll-description').value = poll.description || '';
+    // Carry the expected-voter list forward too (no responses — those aren't cloned).
+    document.getElementById('poll-expected-voters').value = serializeExpectedVoters(poll.expectedVoters);
 
     populateSlotBuilderFrom(poll);
 
@@ -3085,7 +3470,7 @@ async function clonePoll(e, pollId) {
 function startEditPoll(poll) {
   editingPollId  = poll.id;
   createPollType = poll.type;
-  initCreateForm();
+  initCreateForm(poll.clientId ?? '');
 
   document.getElementById('create-title').textContent = 'Edit Poll';
   document.getElementById('poll-title').value          = poll.title;
@@ -3223,6 +3608,41 @@ function askConfirm(message, { title = 'Are you sure?', okLabel = 'Confirm', dan
     okBtn.onclick     = () => done(true);
     cancel.onclick    = () => done(false);
     overlay.onclick   = e => { if (e.target === overlay) done(false); };
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+// Custom prompt dialog (native window.prompt is suppressed in embedded/preview
+// browsers and is poor UX). Resolves to the trimmed string, or null if cancelled.
+function askPrompt(message, { title = 'Enter a value', okLabel = 'Save', defaultValue = '', placeholder = '' } = {}) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('prompt-overlay');
+    const input   = document.getElementById('prompt-input');
+    const okBtn   = document.getElementById('prompt-ok');
+    const cancel  = document.getElementById('prompt-cancel');
+    document.getElementById('prompt-title').textContent = title || message;
+    okBtn.textContent = okLabel;
+    input.value = defaultValue;
+    input.placeholder = placeholder;
+
+    overlay.classList.remove('hidden');
+    overlay.classList.add('flex');
+    input.focus();
+    input.select();
+
+    const done = (result) => {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      okBtn.onclick = cancel.onclick = overlay.onclick = input.onkeydown = null;
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    };
+    const submit = () => { const v = input.value.trim(); done(v ? v : null); };
+    const onKey = e => { if (e.key === 'Escape') done(null); };
+    okBtn.onclick   = submit;
+    cancel.onclick  = () => done(null);
+    overlay.onclick = e => { if (e.target === overlay) done(null); };
+    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } };
     document.addEventListener('keydown', onKey);
   });
 }

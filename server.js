@@ -269,6 +269,10 @@ function serializePoll(poll, slots, votes, isOwner) {
     expectedVoters: poll.expected_voters,
     confirmedSlot: poll.confirmed_slot,
     isOwner: !!isOwner,
+    // Client grouping (Phase 7). client_id is on the poll row; client_name is
+    // joined in by the owner-facing loaders (null/absent for public views).
+    clientId: poll.client_id != null ? Number(poll.client_id) : null,
+    clientName: poll.client_name || null,
     // Owner's account-level branding (Phase 6), shown on the voting page.
     // Joined in by the loaders; absent on polls whose owner set no branding.
     branding: (poll.brand_logo || poll.brand_color)
@@ -307,8 +311,16 @@ async function loadPollById(id, viewerUserId) {
   return serializePoll(poll, slotsRes.rows, votesRes.rows, isOwner);
 }
 
-async function loadPollsByOwner(ownerId) {
-  const pollsRes = await pool.query('SELECT * FROM polls WHERE owner_id = $1 ORDER BY created_at DESC', [ownerId]);
+async function loadPollsByOwner(ownerId, { clientId } = {}) {
+  const params = [ownerId];
+  let where = 'p.owner_id = $1';
+  if (clientId !== undefined) { params.push(clientId); where += ` AND p.client_id = $${params.length}`; }
+  const pollsRes = await pool.query(
+    `SELECT p.*, c.name AS client_name
+     FROM polls p LEFT JOIN clients c ON c.id = p.client_id
+     WHERE ${where} ORDER BY p.created_at DESC`,
+    params
+  );
   const polls = [];
   for (const poll of pollsRes.rows) {
     const [slotsRes, votesRes] = await Promise.all([
@@ -325,9 +337,9 @@ async function createPoll(poll, ownerId) {
   try {
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO polls (id, owner_id, type, title, creator_name, description, created_at, deadline, expected_voters)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [poll.id, ownerId, poll.type, poll.title, poll.creatorName, poll.description, new Date(poll.createdAt), poll.deadline, JSON.stringify(poll.expectedVoters)]
+      `INSERT INTO polls (id, owner_id, type, title, creator_name, description, created_at, deadline, expected_voters, client_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [poll.id, ownerId, poll.type, poll.title, poll.creatorName, poll.description, new Date(poll.createdAt), poll.deadline, JSON.stringify(poll.expectedVoters), poll.clientId ?? null]
     );
     for (let i = 0; i < poll.slots.length; i++) {
       const s = poll.slots[i];
@@ -343,6 +355,17 @@ async function createPoll(poll, ownerId) {
   } finally {
     client.release();
   }
+}
+
+// Resolve a client_id for a poll write: empty → null (no client); otherwise the
+// client must exist AND belong to this owner. Returns { value } or { error }.
+async function resolveClientId(clientId, ownerId) {
+  if (clientId === undefined || clientId === null || clientId === '') return { value: null };
+  const id = Number(clientId);
+  if (!Number.isInteger(id)) return { error: 'Invalid client.' };
+  const r = await pool.query('SELECT 1 FROM clients WHERE id = $1 AND owner_id = $2', [id, ownerId]);
+  if (!r.rows[0]) return { error: 'Client not found.' };
+  return { value: id };
 }
 
 // ─── ROUTES ──────────────────────────────────────────────────────────────────
@@ -475,12 +498,82 @@ app.patch('/api/branding', async (req, res) => {
   res.json({ success: true });
 });
 
+// ─── CLIENTS (Phase 7) ─────────────────────────────────────────────────────
+// Owner-only grouping of polls by client. No public exposure.
+
+function validateClientName(name) {
+  if (typeof name !== 'string' || !name.trim()) return { error: 'Client name is required.' };
+  if (name.trim().length > 100) return { error: 'Client name must be under 100 characters.' };
+  return { value: name.trim() };
+}
+
+// List the current user's clients, each with a live poll count.
+app.get('/api/clients', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  const r = await pool.query(
+    `SELECT c.id, c.name, COUNT(p.id)::int AS poll_count
+     FROM clients c LEFT JOIN polls p ON p.client_id = c.id
+     WHERE c.owner_id = $1
+     GROUP BY c.id ORDER BY c.name`,
+    [user.id]
+  );
+  res.json(r.rows.map(row => ({ id: Number(row.id), name: row.name, pollCount: row.poll_count })));
+});
+
+// Create a client.
+app.post('/api/clients', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  const nameR = validateClientName(req.body && req.body.name);
+  if (nameR.error) return res.status(400).json({ error: nameR.error });
+  const r = await pool.query(
+    'INSERT INTO clients (owner_id, name) VALUES ($1,$2) RETURNING id, name',
+    [user.id, nameR.value]
+  );
+  res.json({ id: Number(r.rows[0].id), name: r.rows[0].name, pollCount: 0 });
+});
+
+// The client hub: the client plus all of the owner's polls for it.
+app.get('/api/clients/:id', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  const cRes = await pool.query('SELECT id, name FROM clients WHERE id = $1 AND owner_id = $2', [req.params.id, user.id]);
+  const client = cRes.rows[0];
+  if (!client) return res.status(404).json({ error: 'Client not found.' });
+  const polls = await loadPollsByOwner(user.id, { clientId: Number(client.id) });
+  res.json({ id: Number(client.id), name: client.name, polls });
+});
+
+// Rename a client.
+app.patch('/api/clients/:id', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  const nameR = validateClientName(req.body && req.body.name);
+  if (nameR.error) return res.status(400).json({ error: nameR.error });
+  const r = await pool.query(
+    'UPDATE clients SET name = $1 WHERE id = $2 AND owner_id = $3 RETURNING id',
+    [nameR.value, req.params.id, user.id]
+  );
+  if (!r.rows[0]) return res.status(404).json({ error: 'Client not found.' });
+  res.json({ success: true });
+});
+
+// Delete a client. Its polls are preserved (client_id set to null by the FK).
+app.delete('/api/clients/:id', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  const r = await pool.query('DELETE FROM clients WHERE id = $1 AND owner_id = $2', [req.params.id, user.id]);
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Client not found.' });
+  res.json({ success: true });
+});
+
 // Create a new poll (requires an account)
 app.post('/api/polls', async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Log in to create a poll.' });
 
-  const { title, creatorName, description, slots, type, deadline, expectedVoters } = req.body;
+  const { title, creatorName, description, slots, type, deadline, expectedVoters, clientId } = req.body;
   const VALID_TYPES = ['schedule', 'question', 'rsvp', 'availability'];
   const pollType = VALID_TYPES.includes(type) ? type : 'schedule';
 
@@ -499,6 +592,8 @@ app.post('/api/polls', async (req, res) => {
   if (votersR.error) return res.status(400).json({ error: votersR.error });
   const slotsR = validateSlots(pollType, slots);
   if (slotsR.error) return res.status(400).json({ error: slotsR.error });
+  const clientR = await resolveClientId(clientId, user.id);
+  if (clientR.error) return res.status(400).json({ error: clientR.error });
 
   const poll = {
     id: generateId(),
@@ -509,6 +604,7 @@ app.post('/api/polls', async (req, res) => {
     createdAt: new Date().toISOString(),
     deadline: deadlineR.value,
     expectedVoters: votersR.value,
+    clientId: clientR.value,
     slots: slotsR.value.map((s, i) => ({ id: `s${i}`, ...s }))
   };
 
@@ -759,7 +855,7 @@ app.patch('/api/polls/:id', async (req, res) => {
   const poll = pollRes.rows[0];
   if (!poll) return res.status(404).json({ error: 'Poll not found.' });
 
-  const { title, description, deadline, expectedVoters, slots } = req.body;
+  const { title, description, deadline, expectedVoters, slots, clientId } = req.body;
   const fields = [];
 
   if (title !== undefined) {
@@ -783,6 +879,11 @@ app.patch('/api/polls/:id', async (req, res) => {
     const r = validateExpectedVoters(expectedVoters);
     if (r.error) return res.status(400).json({ error: r.error });
     fields.push(['expected_voters', JSON.stringify(r.value)]);
+  }
+  if (clientId !== undefined) {
+    const r = await resolveClientId(clientId, user.id);
+    if (r.error) return res.status(400).json({ error: r.error });
+    fields.push(['client_id', r.value]);
   }
   let resolvedSlots = null;
   if (slots !== undefined) {

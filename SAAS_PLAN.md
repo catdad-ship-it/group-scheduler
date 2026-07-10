@@ -177,13 +177,18 @@ The positioning decision (`fb46184`) named custom branding as *the* thing that j
 
 Bigger effort (new data model for grouping polls by client), deepens the wedge rather than polishing what exists. Do after Phase 6 so branding — the thing that makes an agency look competent to a client — already exists when this ships.
 
-- [ ] Per-client hub page — a persistent link aggregating all past/upcoming polls with one client.
-- [ ] "Preview as voter" button in the create flow — see exactly what the recipient will see before sharing the link.
-- [ ] Duplicate/reuse poll — "duplicate this poll" (same slots/voters, no responses) for repeat kickoff-style polls.
-- [ ] Empty/loading states — skeletons instead of blank flashes on dashboard/poll load.
-- [ ] Revisit the full settings nav here (toggle features per user/per poll) — by now nudge, reminders, branding, and timezone display are all real candidates, so the case for it is no longer hypothetical.
+- [x] Per-client hub page — **owner-only** (decision below). New `clients` table (`id`, `owner_id`, `name`) + nullable `polls.client_id` (`ON DELETE SET NULL` — deleting a client keeps its polls, just unassigns them). CRUD at `/api/clients` (+ `GET /api/clients/:id` returns the client and its polls). A "Client" selector in the create/edit form (with inline "+ New client"), and a hub view at `/clients/:id` that groups the client's polls into Active vs. Confirmed/closed with a "New poll for this client" shortcut and rename/delete.
+- [x] **Client management + reassign from the dashboard** (added 2026-07-10 on request): the My Polls page has a Clients section to create ("+ New client"), open, rename, and delete clients inline — and every poll card carries a compact client `<select>` that reassigns (or unassigns) the poll on change (`PATCH /api/polls/:id`), refreshing whichever view is open. So you no longer have to open the create/edit flow to manage clients or move a poll between them.
+- [x] "Preview as voter" button — owner-only toggle on the poll view that re-renders exactly what a non-owner invitee sees (implemented by presenting the poll as not-owned for the synchronous render, then restoring), with a preview bar + Exit. Includes the Phase 6 branding, so it doubles as a "see my branded voter page" check. No server change.
+- [x] Duplicate/reuse poll — already mostly existed (`clonePoll` clones title/slots with no responses); finished it by carrying the expected-voter list forward too.
+- [x] Empty/loading states — the poll view already had a skeleton; added a matching `animate-pulse` skeleton to the dashboard (replacing the plain "Loading…" text).
+- [~] Full settings nav — **deferred** (decision below). No real per-user toggles need a home yet (branding has its own page; nudge/reminders are contextual actions, not settings). Revisit if/when toggleable options accumulate.
 
-**Acceptance:** a client's whole poll history is visible from one link; an organizer can preview the voter view before sharing; a poll can be duplicated without recreating slots/voters from scratch.
+**Decisions (2026-07-10):** (1) The client hub is **owner-only** (behind login, no public/shareable link) — an internal organization tool, chosen over a shareable client-facing portal to keep zero privacy surface. (2) The "full settings nav" bullet was **deferred** as premature.
+
+**Verified locally 2026-07-10** — server side exhaustively via authenticated `curl`: create client, assign a poll to it, `/api/clients` shows the live poll count, the hub returns the client + its polls with the client name joined, reassign/unassign via PATCH updates the count, rename works, and deleting a client returns the poll with `client_id` nulled (FK `SET NULL` confirmed); ownership is enforced — assigning a client id that isn't yours is a 400. The frontend was syntax-checked (clean parse of the full app script) and follows the same render patterns as Phases 4–6, but the sandbox browser tooling was mid-migration and unavailable, so the click-through/visual pass (client dropdown, hub layout, preview-as-voter hiding owner controls) wasn't done in-session — worth a quick manual look before/after deploy.
+
+**Acceptance:** a client's whole poll history is visible from one place (✅, owner-only hub); an organizer can preview the voter view before sharing (✅); a poll can be duplicated without recreating slots/voters (✅).
 
 ### Phase 8 — Integrations
 

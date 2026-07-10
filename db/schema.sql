@@ -62,6 +62,19 @@ END $$;
 -- Phase 5: dedupes the deadline-reminder sweep so it only fires once per poll.
 ALTER TABLE polls ADD COLUMN IF NOT EXISTS deadline_reminder_sent_at TIMESTAMPTZ;
 
+-- Phase 7 (agency relationship features): clients group an owner's polls.
+-- Owner-only (no public exposure); a poll optionally belongs to one client.
+CREATE TABLE IF NOT EXISTS clients (
+  id          BIGSERIAL PRIMARY KEY,
+  owner_id    BIGINT NOT NULL REFERENCES users(id),
+  name        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_clients_owner_id ON clients(owner_id);
+-- Deleting a client leaves its polls intact, just unassigned.
+ALTER TABLE polls ADD COLUMN IF NOT EXISTS client_id BIGINT REFERENCES clients(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_polls_client_id ON polls(client_id);
+
 CREATE TABLE IF NOT EXISTS slots (
   id            BIGSERIAL PRIMARY KEY,
   poll_id       TEXT NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
