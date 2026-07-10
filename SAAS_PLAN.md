@@ -19,6 +19,24 @@ Do one phase per session. Don't let it jump ahead — each phase depends on the 
 
 ---
 
+## Status snapshot (2026-07-10)
+
+**Live in production** (`huddlr.co`, `main` = `dev` = `36abf72`): Phases 0–2 (accounts, multi-tenancy, Postgres), Phase 3's *feature set minus billing*, and Phases 4–7:
+- **Phase 4** — post-confirmation screen, ICS/Google Calendar export, timezone confirmation, real-time results.
+- **Phase 5** — chase-the-voter: new-response notifications, one-click nudge, organizer deadline reminders, server-side best-slot in emails.
+- **Phase 6** — account-level branding (logo + accent color on the voting page).
+- **Phase 7** — client grouping + owner-only hub, manage/reassign clients from My Polls, preview-as-voter, duplicate-with-voters, dashboard skeleton.
+
+**Built but NOT live** — **Phase 3 billing (Stripe)**: parked on the dedicated **`billing` branch** (`83768cb`, off `main` post-Phase-5), deliberately kept off `dev`/`main` so it can't deploy by accident. Immutable pre-split snapshot tagged `archive/dev-pre-billing-split`.
+
+**Left to do:**
+- **Phase 8** — integrations (calendar connect, Slack, SMS). Lowest proven demand; do only once real usage justifies it.
+- **Phase 9** — ship billing to production (merge `billing`, apply/verify, set live Stripe secrets, grandfather existing users) **plus** gate Phase 6 branding behind Pro at that point.
+
+**Workflow now:** `dev` and `main` are in sync and billing-free, so it's ordinary git — work on `dev`, `git checkout main && git merge dev` (clean fast-forward), push both, `fly deploy`. Schema changes must be applied to the prod DB **before** the code deploy, and must be run **interactively** by Brady (`fly postgres connect -a group-scheduler-db`, `\c group_scheduler` on its own line first) — the headless/piped path hangs in this environment.
+
+---
+
 ## Current state (as of Phase 0–2 + follow-ups being done)
 
 - **Stack:** Node + Express, deployed on Fly.io at `huddlr.co` (custom domain; the old `group-scheduler.fly.dev` URL still works too).
