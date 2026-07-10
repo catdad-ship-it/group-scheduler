@@ -1543,7 +1543,7 @@ function renderAvailabilityVoteForm(poll, tz) {
     <p class="text-xs text-gray-500 mb-4">Drag across the grid to paint your available times. Times shown in ${esc(tz)}.</p>
     ${renderVoterNameField(poll)}
     <div class="overflow-x-auto pb-2 -mx-1 px-1">
-      <div id="avail-grid" style="${gridColsStyle(dates.length)}touch-action:none;">
+      <div id="avail-grid" style="${gridColsStyle(dates.length)}">
         ${headerCells}
         ${rows}
       </div>

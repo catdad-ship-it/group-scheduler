@@ -109,15 +109,69 @@ Don't build this until Phases 1–2 are live and someone's using it.
 
 **Acceptance:** a free user hits the cap and gets an upgrade prompt; paying flips them to Pro and unlocks features; cancelling downgrades them at period end.
 
-## Phase 4 — The stuff that makes people pay
+## Phase 4+ — Backlog, prioritized (2026-07-09)
+
+Below supersedes the old one-shot "Phase 4" draft. Source: a product-review backlog dumped into `TODO.md` on 2026-07-09 (14 items, unprioritized), now sequenced against the positioning decision and what's actually shipped. Custom domain is done (huddlr.co is live) so it's dropped from the list below.
+
+### Before/alongside Phase 4 — not a phase, just don't skip these
+
+- [x] **Mobile QA pass on the availability-grid drag-to-paint.** Verified 2026-07-09: the core interaction already used unified Pointer Events (not raw mouse events) and `.avail-cell` already had `touch-action: none` scoped correctly in the stylesheet — both right. Found and fixed one real bug: the grid container (`#avail-grid`) had a *redundant* inline `touch-action:none` that over-applied to the header row and time-label column too, which would've blocked native horizontal swipe-scroll on any poll wide enough to overflow a phone screen (a 7-day poll needs ~389px, wider than an iPhone SE's 375px). Removed the inline override; `.avail-cell`'s own `touch-action: none` still correctly locks out scroll during an actual paint-drag. Re-verified the paint interaction itself with simulated touch-type Pointer Events after the fix — still paints correctly across a drag. Caveat: a headless browser can't fully simulate the OS-level native scroll gesture itself, so the scroll-restoration specifically wasn't observed end-to-end, only the CSS precondition for it (`touch-action: auto` on non-cell elements) — worth a real-device check next time Brady has a phone in hand.
+- [x] **Automated DB backups + basic uptime monitoring.** Done 2026-07-10 (on the `group-scheduler-db`/Fly infrastructure side, not app code — nothing to merge here, noted for the record). Daily volume snapshots were already running (5-day retention); added WAL-based continuous backups on top (7-day recovery window) and bumped snapshot retention to 14 days. Stood up self-hosted Uptime Kuma (its own Fly app, `huddlr-uptime`) watching huddlr.co, alerting via Resend SMTP — verified with a real forced-down/up test.
+
+### Phase 4 — Close the confirm loop
+
+Small, no new infra, directly improves the core flow every poll already goes through (vote → confirm). Fastest path to shipping something.
+
+- [ ] Voter self-edit — let a voter reopen their own submission via their link and change their response, instead of the organizer deleting-and-redoing via admin.
+- [ ] Post-confirmation screen — a clean "you're locked in" screen with full details after a slot is confirmed.
+- [ ] Calendar export: `.ics` download + Google Calendar link on the confirmed slot (pairs directly with the above).
+- [ ] Timezone confirmation on vote submit — "your response was recorded in Eastern Time," so cross-org confusion doesn't surface later as a no-show.
+- [ ] Real-time results — poll for new votes every few seconds on the results view instead of requiring a manual refresh.
+
+**Acceptance:** a voter can revise their own response without organizer help; confirming a slot shows a clear locked-in screen with an .ics attendees can add; votes carry an explicit timezone; results update without a manual refresh.
+
+### Phase 5 — Chase-the-voter workflows
+
+This is the named daily pain in the positioning doc: chasing the one unresponsive client stakeholder. Highest leverage for the agency wedge specifically.
 
 - [ ] Email notifications: "your poll got a new response," deadline reminders (Resend).
-- [ ] Calendar export: `.ics` download + Google Calendar link on the confirmed slot.
-- [ ] Custom domain.
-- [ ] Automated DB backups + basic uptime monitoring.
-- [ ] Light branding controls for Pro (logo/color on the voting page).
+- [ ] One-click "nudge" button next to each name in "who hasn't voted" — fires an email immediately, ahead of any automated reminder.
+- [ ] Smart-suggested slot — surface "most people can make this one" from the existing heatmap data instead of making the organizer read the grid.
 
-**Acceptance:** confirming a slot sends attendees an .ics; deadline reminders fire; DB backs up on a schedule.
+**Acceptance:** an organizer gets notified of new responses without checking back; an unresponsive voter can be nudged with one click; the best slot is surfaced automatically instead of requiring manual grid-reading.
+
+### Phase 6 — Branding & the price raise
+
+The positioning decision (`fb46184`) named custom branding as *the* thing that justifies Pro pricing north of $5/mo — Pro launched cheap specifically because this doesn't exist yet. Building it is the unlock for revisiting the $15–20/mo target, not just a nice-to-have.
+
+- [ ] Light branding controls for Pro (logo/color on the voting page a client sees).
+- [ ] Minimal settings surface to support the above (logo upload, color picker) — not the full "toggle every feature" nav from the backlog; that's premature until there are enough toggleable features to justify it (see Phase 7).
+
+**Acceptance:** a Pro user can set a logo/color that shows on their voting pages; revisit Pro pricing once this is live.
+
+### Phase 7 — Agency relationship features
+
+Bigger effort (new data model for grouping polls by client), deepens the wedge rather than polishing what exists. Do after Phase 6 so branding — the thing that makes an agency look competent to a client — already exists when this ships.
+
+- [ ] Per-client hub page — a persistent link aggregating all past/upcoming polls with one client.
+- [ ] "Preview as voter" button in the create flow — see exactly what the recipient will see before sharing the link.
+- [ ] Duplicate/reuse poll — "duplicate this poll" (same slots/voters, no responses) for repeat kickoff-style polls.
+- [ ] Empty/loading states — skeletons instead of blank flashes on dashboard/poll load.
+- [ ] Revisit the full settings nav here (toggle features per user/per poll) — by now nudge, reminders, branding, and timezone display are all real candidates, so the case for it is no longer hypothetical.
+
+**Acceptance:** a client's whole poll history is visible from one link; an organizer can preview the voter view before sharing; a poll can be duplicated without recreating slots/voters from scratch.
+
+### Phase 8 — Integrations
+
+Biggest lift (external OAuth/services), least proven demand. Do only once repeat usage from real agency customers justifies the investment — not speculatively.
+
+- [ ] Two-way calendar connect (Google/Outlook) for the internal team side — teammates connect their calendar instead of manually picking availability.
+- [ ] Slack notification/webhook on vote or confirm.
+- [ ] SMS reminders as an option for stakeholders who don't check email fast.
+
+**Acceptance:** a teammate's real calendar availability populates a poll without manual entry; a Slack channel gets notified on vote/confirm; SMS reminders can be opted into per poll.
+
+**Not yet merged here:** Phase 3 (billing) and its go-live (Phase 9 on `dev`) — deliberately held back until this branch is more robust and Brady explicitly asks for it. See `dev`'s copy of this doc for that detail once it's ready to merge.
 
 ---
 
