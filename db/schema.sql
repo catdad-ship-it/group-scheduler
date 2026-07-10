@@ -8,6 +8,10 @@ CREATE TABLE IF NOT EXISTS users (
   plan        TEXT NOT NULL DEFAULT 'free'
 );
 
+-- Phase 3 (billing): links a user to their Stripe customer/subscription.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+
 CREATE TABLE IF NOT EXISTS magic_link_tokens (
   token       TEXT PRIMARY KEY,
   email       TEXT NOT NULL,

@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
+const Stripe = require('stripe');
 
 const app = express();
 app.set('trust proxy', true);
@@ -117,6 +118,81 @@ function clientIp(req) {
 function generateSlotKey() {
   return 's' + crypto.randomBytes(4).toString('hex');
 }
+
+// ─── BILLING (Phase 3) ─────────────────────────────────────────────────────
+
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID;
+if (!STRIPE_SECRET_KEY) {
+  console.warn('⚠️  WARNING: STRIPE_SECRET_KEY not set. Billing routes will fail until it is.');
+}
+const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
+
+const FREE_POLL_LIMIT = 3;
+
+async function getUserById(id) {
+  const res = await pool.query(
+    'SELECT id, email, plan, stripe_customer_id, stripe_subscription_id FROM users WHERE id = $1',
+    [id]
+  );
+  return res.rows[0] || null;
+}
+
+async function countActivePolls(ownerId) {
+  const res = await pool.query(
+    `SELECT COUNT(*)::int AS count FROM polls
+     WHERE owner_id = $1 AND confirmed_slot IS NULL AND (deadline IS NULL OR deadline > $2)`,
+    [ownerId, Date.now()]
+  );
+  return res.rows[0].count;
+}
+
+// Stripe needs the raw request body to verify the webhook signature, so this
+// route is registered before the global express.json() body parser below.
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe || !STRIPE_WEBHOOK_SECRET) return res.status(500).send('Stripe is not configured.');
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Stripe webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const userId = session.client_reference_id;
+        if (userId) {
+          await pool.query(
+            `UPDATE users SET plan = 'pro', stripe_customer_id = $1, stripe_subscription_id = $2 WHERE id = $3`,
+            [session.customer, session.subscription, userId]
+          );
+        }
+        break;
+      }
+      case 'customer.subscription.deleted': {
+        const sub = event.data.object;
+        await pool.query(`UPDATE users SET plan = 'free' WHERE stripe_subscription_id = $1`, [sub.id]);
+        break;
+      }
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        if (invoice.subscription) {
+          await pool.query(`UPDATE users SET plan = 'free' WHERE stripe_subscription_id = $1`, [invoice.subscription]);
+        }
+        break;
+      }
+    }
+  } catch (e) {
+    console.error('Error handling Stripe webhook event:', e);
+  }
+
+  res.json({ received: true });
+});
 
 app.use(express.json({ limit: '16kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -384,9 +460,71 @@ app.post('/api/logout', (req, res) => {
 });
 
 // Auth status
-app.get('/api/auth-status', (req, res) => {
+app.get('/api/auth-status', async (req, res) => {
   const user = getSessionUser(req);
-  res.json({ authenticated: !!user, email: user ? user.email : null });
+  if (!user) return res.json({ authenticated: false, email: null, plan: null });
+  const dbUser = await getUserById(user.id);
+  res.json({ authenticated: true, email: user.email, plan: dbUser ? dbUser.plan : 'free' });
+});
+
+// Billing: current plan + whether a Stripe customer/portal exists
+app.get('/api/billing/status', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  const dbUser = await getUserById(user.id);
+  res.json({ plan: dbUser ? dbUser.plan : 'free', hasStripeCustomer: !!(dbUser && dbUser.stripe_customer_id) });
+});
+
+// Billing: start a Stripe Checkout session to upgrade to Pro
+app.post('/api/billing/checkout', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Log in first.' });
+  if (!stripe || !STRIPE_PRICE_ID) return res.status(500).json({ error: 'Billing is not configured yet.' });
+
+  try {
+    const dbUser = await getUserById(user.id);
+    let customerId = dbUser && dbUser.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({ email: user.email });
+      customerId = customer.id;
+      await pool.query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, user.id]);
+    }
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: customerId,
+      client_reference_id: String(user.id),
+      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      success_url: `${origin}/billing?checkout=success`,
+      cancel_url: `${origin}/billing?checkout=cancelled`
+    });
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error('Stripe checkout error:', e);
+    res.status(500).json({ error: 'Could not start checkout.' });
+  }
+});
+
+// Billing: open the Stripe customer portal to manage/cancel
+app.post('/api/billing/portal', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Log in first.' });
+  if (!stripe) return res.status(500).json({ error: 'Billing is not configured yet.' });
+
+  const dbUser = await getUserById(user.id);
+  if (!dbUser || !dbUser.stripe_customer_id) return res.status(400).json({ error: 'No billing account yet.' });
+
+  try {
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const session = await stripe.billingPortal.sessions.create({
+      customer: dbUser.stripe_customer_id,
+      return_url: `${origin}/billing`
+    });
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error('Stripe portal error:', e);
+    res.status(500).json({ error: 'Could not open billing portal.' });
+  }
 });
 
 // Admin: list the current user's polls
@@ -405,6 +543,21 @@ app.post('/api/polls', async (req, res) => {
   const { title, creatorName, description, slots, type, deadline, expectedVoters } = req.body;
   const VALID_TYPES = ['schedule', 'question', 'rsvp', 'availability'];
   const pollType = VALID_TYPES.includes(type) ? type : 'schedule';
+
+  const dbUser = await getUserById(user.id);
+  const isPro = !!(dbUser && dbUser.plan === 'pro');
+
+  if (!isPro && pollType === 'availability') {
+    return res.status(402).json({ error: 'Availability grids are a Pro feature — upgrade to unlock them.' });
+  }
+  if (!isPro) {
+    const activeCount = await countActivePolls(user.id);
+    if (activeCount >= FREE_POLL_LIMIT) {
+      return res.status(402).json({
+        error: `Free plan is limited to ${FREE_POLL_LIMIT} active polls — upgrade to Pro for unlimited polls, or confirm/delete an existing one.`
+      });
+    }
+  }
 
   if (creatorName !== undefined && creatorName !== null &&
       (typeof creatorName !== 'string' || creatorName.trim().length > 100)) {
