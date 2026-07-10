@@ -575,6 +575,8 @@ let resultsSortByScore = true;
 let resultsViewMode    = 'list'; // 'list' | 'grid' (schedule results)
 let pollViewMode       = 'full'; // 'full' | 'summary' — summary is the read-only view opened from My Polls
 let editingPollId      = null; // set while the create view is being used to edit an existing poll
+let showFullDetails    = false; // voter opted past the post-confirmation "locked in" screen to see full results
+let pollRefreshTimer   = null; // interval id for the real-time results poll, active while a poll view is open
 
 // ────────────────────────────────────────────────────
 // AUTH / NAV STATE
@@ -852,6 +854,7 @@ async function init() {
 }
 
 function showView(name) {
+  if (name !== 'poll') stopPollRefresh();
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
   window.scrollTo(0, 0);
@@ -903,6 +906,11 @@ function getTimezones() {
 
 function getUserTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+function friendlyTzName(tz) {
+  return new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'long' })
+    .formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || tz;
 }
 
 function formatSlot(utcMs, tz) {
@@ -1349,6 +1357,7 @@ function goToPoll() {
 // ────────────────────────────────────────────────────
 async function loadPoll(id, opts = {}) {
   pollViewMode = opts.summary ? 'summary' : 'full';
+  showFullDetails = false;
   const container = document.getElementById('poll-container');
   try {
     const res = await fetch(`/api/polls/${id}`);
@@ -1370,6 +1379,7 @@ async function loadPoll(id, opts = {}) {
     if (!res.ok) throw new Error('Server error');
     currentPoll = await res.json();
     renderPoll();
+    startPollRefresh();
   } catch (e) {
     container.innerHTML = `<p class="text-red-500 text-sm text-center py-12">Error loading poll — please refresh.</p>`;
   }
@@ -1384,6 +1394,85 @@ function renderPoll() {
   if (currentPoll.type === 'availability') { renderAvailabilityPoll(); return; }
   renderSchedulePoll();
 }
+
+// ────────────────────────────────────────────────────
+// REAL-TIME RESULTS (poll for updates while a poll view is open)
+// ────────────────────────────────────────────────────
+const POLL_REFRESH_INTERVAL_MS = 5000;
+
+function startPollRefresh() {
+  stopPollRefresh();
+  pollRefreshTimer = setInterval(refreshPollTick, POLL_REFRESH_INTERVAL_MS);
+}
+
+function stopPollRefresh() {
+  if (pollRefreshTimer) { clearInterval(pollRefreshTimer); pollRefreshTimer = null; }
+}
+
+// True if the voter has started filling out the vote form — a background refresh
+// must not stomp on an in-progress name entry or vote selection.
+function isVoteFormActive() {
+  const nameInput = document.getElementById('vote-name');
+  if (nameInput && nameInput.value.trim()) return true;
+  const nameSelect = document.getElementById('vote-name-select');
+  if (nameSelect && nameSelect.value) return true;
+  if (document.activeElement && document.activeElement.closest('#vote-card, #rsvp-vote-card, #avail-vote-card, #q-vote-card')) return true;
+  return Object.values(voteResponses).some(v => v !== null && v !== undefined);
+}
+
+async function refreshPollTick() {
+  if (document.hidden || !currentPollId || !pollRefreshTimer) return;
+  let fresh;
+  try {
+    const res = await fetch(`/api/polls/${currentPollId}`);
+    if (!res.ok) return;
+    fresh = await res.json();
+  } catch { return; }
+
+  const activeVoteForm = isVoteFormActive();
+  currentPoll = fresh;
+  if (activeVoteForm) {
+    refreshResultsOnly();
+  } else {
+    renderPoll();
+  }
+}
+
+// Partial re-render: updates only the results/banner/who-hasn't-voted/manage-responses
+// regions, and never touches the vote-card DOM — used while a voter is mid-form.
+function refreshResultsOnly() {
+  const poll = currentPoll;
+  const tz = getUserTimezone();
+
+  const countEl = document.getElementById('response-count-text');
+  if (countEl) countEl.textContent = `${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}`;
+
+  if (poll.type === 'question') {
+    const el = document.getElementById('q-results-section');
+    if (el) el.innerHTML = renderQuestionResults(poll);
+  } else if (poll.type === 'rsvp') {
+    const el = document.getElementById('rsvp-results-section');
+    if (el) el.innerHTML = renderRsvpResults(poll);
+  } else if (poll.type === 'availability') {
+    const el = document.getElementById('avail-results-section');
+    if (el) el.innerHTML = renderAvailabilityResults(poll, tz);
+  } else {
+    const bannerEl = document.getElementById('confirm-banner');
+    if (bannerEl) bannerEl.innerHTML = renderConfirmBanner(poll, tz);
+    const el = document.getElementById('results-section');
+    if (el) el.innerHTML = renderResults(poll, tz);
+  }
+
+  const whoEl = document.getElementById('who-hasnt-voted-section');
+  if (whoEl) whoEl.innerHTML = renderWhoHasntVoted(poll);
+  const manageEl = document.getElementById('manage-responses-section');
+  if (manageEl) manageEl.innerHTML = (pollViewMode === 'summary') ? '' : renderManageResponses(poll);
+  renderIcons();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshPollTick();
+});
 
 // ────────────────────────────────────────────────────
 // DEADLINE LINE HELPER (shared)
@@ -1411,8 +1500,8 @@ function renderRsvpPoll() {
       ${renderRsvpVoteForm(poll)}
     </div>`}
     <div id="rsvp-results-section">${renderRsvpResults(poll)}</div>
-    ${renderWhoHasntVoted(poll)}
-    ${summaryMode ? '' : renderManageResponses(poll)}`;
+    <div id="who-hasnt-voted-section">${renderWhoHasntVoted(poll)}</div>
+    <div id="manage-responses-section">${summaryMode ? '' : renderManageResponses(poll)}</div>`;
   renderIcons();
   if (!summaryMode) applyPrefillVoterName();
 }
@@ -1628,8 +1717,8 @@ function renderAvailabilityPoll() {
       ${renderAvailabilityVoteForm(poll, tz)}
     </div>`}
     <div id="avail-results-section">${renderAvailabilityResults(poll, tz)}</div>
-    ${renderWhoHasntVoted(poll)}
-    ${summaryMode ? '' : renderManageResponses(poll)}`;
+    <div id="who-hasnt-voted-section">${renderWhoHasntVoted(poll)}</div>
+    <div id="manage-responses-section">${summaryMode ? '' : renderManageResponses(poll)}</div>`;
   renderIcons();
   if (!summaryMode) attachAvailPaint();
   if (!summaryMode) applyPrefillVoterName();
@@ -1642,7 +1731,10 @@ function gridColsStyle(n) {
 function renderAvailabilityVoteForm(poll, tz) {
   if (poll.deadline && Date.now() > poll.deadline) return renderClosedCard();
   const record = getVoteRecord(poll.id);
-  if (record) return renderAlreadyVotedCard(record.name, poll.id);
+  if (record) {
+    const vote = poll.votes.find(v => v.name.toLowerCase() === record.name.toLowerCase());
+    return renderAlreadyVotedCard(record.name, poll.id, vote?.timezone);
+  }
 
   const { dates, times, map } = availStructure(poll, tz);
 
@@ -1713,16 +1805,17 @@ async function submitAvailabilityVote() {
   currentPoll.slots.forEach(s => { if (voteResponses[s.id] === 'yes') responses[s.id] = 'yes'; });
   if (Object.keys(responses).length === 0) { errEl.textContent = 'Paint at least one time you\'re free.'; return; }
 
+  const timezone = getUserTimezone();
   const btn = document.getElementById('vote-btn');
   btn.disabled = true; btn.textContent = 'Submitting…';
   try {
     const res = await fetch(`/api/polls/${currentPollId}/vote`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, timezone: getUserTimezone(), responses })
+      body: JSON.stringify({ name, timezone, responses })
     });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
     setVoteRecord(currentPollId, name);
-    showToast('Availability saved!');
+    showToast(`Availability saved! Recorded in ${friendlyTzName(timezone)}.`);
     voteResponses = {};
     await loadPoll(currentPollId, { summary: pollViewMode === 'summary' });
   } catch (e) {
@@ -1829,7 +1922,7 @@ function renderPollHeader(poll, deadlineLine) {
       ${poll.description ? `<p class="text-sm text-gray-600 mt-2 whitespace-pre-line">${esc(poll.description)}</p>` : ''}
       <div class="flex items-center gap-2 text-sm text-gray-500 mt-2">
         <i data-lucide="users" class="w-3.5 h-3.5"></i>
-        ${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}
+        <span id="response-count-text">${poll.votes.length} response${poll.votes.length !== 1 ? 's' : ''}</span>
       </div>
       ${deadlineLine}
     </div>`;
@@ -2002,8 +2095,8 @@ function renderQuestionPoll() {
     <div id="q-results-section">
       ${renderQuestionResults(poll)}
     </div>
-    ${renderWhoHasntVoted(poll)}
-    ${summaryMode ? '' : renderManageResponses(poll)}`;
+    <div id="who-hasnt-voted-section">${renderWhoHasntVoted(poll)}</div>
+    <div id="manage-responses-section">${summaryMode ? '' : renderManageResponses(poll)}</div>`;
   renderIcons();
   if (!summaryMode) applyPrefillVoterName();
 }
@@ -2173,41 +2266,98 @@ function renderQuestionResults(poll) {
 // ────────────────────────────────────────────────────
 // SCHEDULE POLL RENDER
 // ────────────────────────────────────────────────────
+function renderConfirmedScreen(poll, tz) {
+  const cs = poll.slots.find(s => s.id === poll.confirmedSlot);
+  const { dateStr } = formatSlot(cs.datetime, tz);
+  const timeStr = formatSlotTime(cs, tz);
+  const attendees = poll.votes.filter(v => v.responses[poll.confirmedSlot] === 'yes').map(v => v.name);
+
+  document.getElementById('poll-container').innerHTML = `
+    <div class="text-center py-6">
+      <div class="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
+        <i data-lucide="check" class="w-8 h-8 text-white"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900 mb-1">You're locked in</h1>
+      <p class="text-base text-gray-600 mb-1">${esc(dateStr)}</p>
+      <p class="text-base text-gray-600 mb-6">${esc(timeStr)}</p>
+
+      <div class="max-w-sm mx-auto text-left bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6">
+        <h2 class="font-bold text-gray-900 mb-1">${esc(poll.title)}</h2>
+        ${poll.description ? `<p class="text-sm text-gray-600 whitespace-pre-line mb-3">${esc(poll.description)}</p>` : ''}
+        ${poll.creatorName ? `<p class="text-xs text-gray-500 mb-3">Organized by ${esc(poll.creatorName)}</p>` : ''}
+        ${attendees.length ? `
+          <div class="text-xs font-semibold text-gray-500 mb-1">ATTENDEES</div>
+          <p class="text-sm text-gray-700">${attendees.map(esc).join(', ')}</p>
+        ` : ''}
+      </div>
+
+      <div class="flex items-center justify-center gap-2 mb-6">
+        <button onclick="downloadICS(currentPoll)"
+          class="text-xs text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap">
+          + Calendar
+        </button>
+        <a href="${esc(googleCalendarUrl(poll))}" target="_blank" rel="noopener"
+          class="text-xs text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap">
+          Google Calendar
+        </a>
+      </div>
+
+      <button onclick="showFullDetails = true; renderPoll();" class="text-xs font-semibold text-gray-500 hover:text-blue-600 transition-all">
+        View full details
+      </button>
+    </div>`;
+  renderIcons();
+}
+
+function renderConfirmBanner(poll, tz) {
+  if (!poll.confirmedSlot) return '';
+  const cs = poll.slots.find(s => s.id === poll.confirmedSlot);
+  if (!cs) return '';
+  const { dateStr } = formatSlot(cs.datetime, tz);
+  const timeStr = formatSlotTime(cs, tz);
+  return `
+    <div class="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3.5 mb-6">
+      <div class="w-8 h-8 bg-green-500 rounded-xl flex items-center justify-center shrink-0">
+        <i data-lucide="check" class="w-4 h-4 text-white"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-green-800">Time Confirmed</div>
+        <div class="text-xs text-green-600">${esc(dateStr)} at ${esc(timeStr)}</div>
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button onclick="downloadICS(currentPoll)"
+          class="text-xs text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap">
+          + Calendar
+        </button>
+        <a href="${esc(googleCalendarUrl(poll))}" target="_blank" rel="noopener"
+          class="text-xs text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap">
+          Google Calendar
+        </a>
+        ${poll.isOwner ? `<button onclick="unconfirmSlot()"
+          class="text-xs text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-1.5 rounded-lg transition-all">
+          Unconfirm
+        </button>` : ''}
+      </div>
+    </div>`;
+}
+
 function renderSchedulePoll() {
   const poll = currentPoll;
   const tz   = getUserTimezone();
+
+  if (poll.confirmedSlot && !poll.isOwner && !showFullDetails) {
+    return renderConfirmedScreen(poll, tz);
+  }
+
   const summaryMode = pollViewMode === 'summary';
 
   poll.slots.forEach(s => { if (!(s.id in voteResponses)) voteResponses[s.id] = null; });
 
-  let banner = '';
-  if (poll.confirmedSlot) {
-    const cs = poll.slots.find(s => s.id === poll.confirmedSlot);
-    if (cs) {
-      const { dateStr } = formatSlot(cs.datetime, tz);
-      const timeStr = formatSlotTime(cs, tz);
-      banner = `
-        <div class="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3.5 mb-6">
-          <div class="w-8 h-8 bg-green-500 rounded-xl flex items-center justify-center shrink-0">
-            <i data-lucide="check" class="w-4 h-4 text-white"></i>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-semibold text-green-800">Time Confirmed</div>
-            <div class="text-xs text-green-600">${esc(dateStr)} at ${esc(timeStr)}</div>
-          </div>
-          <div class="flex gap-2 shrink-0">
-            <button onclick="downloadICS(currentPoll)"
-              class="text-xs text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap">
-              + Calendar
-            </button>
-            ${poll.isOwner ? `<button onclick="unconfirmSlot()"
-              class="text-xs text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-1.5 rounded-lg transition-all">
-              Unconfirm
-            </button>` : ''}
-          </div>
-        </div>`;
-    }
-  }
+  const backLink = (poll.confirmedSlot && !poll.isOwner && showFullDetails)
+    ? `<button onclick="showFullDetails = false; renderPoll();" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-all mb-4">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back to locked-in view
+       </button>`
+    : '';
 
   const deadlineLine = poll.deadline
     ? `<div class="flex items-center gap-1.5 text-xs mt-1 ${Date.now() > poll.deadline ? 'text-red-500' : 'text-gray-500'}">
@@ -2218,7 +2368,8 @@ function renderSchedulePoll() {
 
   document.getElementById('poll-container').innerHTML = `
     ${renderPollHeader(poll, deadlineLine)}
-    ${banner}
+    ${backLink}
+    <div id="confirm-banner">${renderConfirmBanner(poll, tz)}</div>
     ${renderPollModeControl(poll, summaryMode)}
     ${summaryMode ? '' : `<div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6" id="vote-card">
       ${renderVoteForm(poll, tz)}
@@ -2226,8 +2377,8 @@ function renderSchedulePoll() {
     <div id="results-section">
       ${renderResults(poll, tz)}
     </div>
-    ${renderWhoHasntVoted(poll)}
-    ${summaryMode ? '' : renderManageResponses(poll)}`;
+    <div id="who-hasnt-voted-section">${renderWhoHasntVoted(poll)}</div>
+    <div id="manage-responses-section">${summaryMode ? '' : renderManageResponses(poll)}</div>`;
   renderIcons();
   if (!summaryMode) applyPrefillVoterName();
 }
@@ -2276,7 +2427,10 @@ function renderVoteSlots(poll, tz) {
 function renderVoteForm(poll, tz) {
   if (poll.deadline && Date.now() > poll.deadline) return renderClosedCard();
   const record = getVoteRecord(poll.id);
-  if (record) return renderAlreadyVotedCard(record.name, poll.id);
+  if (record) {
+    const vote = poll.votes.find(v => v.name.toLowerCase() === record.name.toLowerCase());
+    return renderAlreadyVotedCard(record.name, poll.id, vote?.timezone);
+  }
 
   const slotsHTML = renderVoteSlots(poll, tz);
 
@@ -2331,7 +2485,7 @@ async function submitVote() {
     });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
     setVoteRecord(currentPollId, name);
-    showToast('Vote submitted!');
+    showToast(`Vote submitted! Recorded in ${friendlyTzName(timezone)}.`);
     voteResponses = {};
     await loadPoll(currentPollId, { summary: pollViewMode === 'summary' });
   } catch (e) {
@@ -2590,18 +2744,33 @@ function renderResultsGrid(poll, tz, columns, slotScores, total, winnerId) {
 // ────────────────────────────────────────────────────
 // CALENDAR EXPORT
 // ────────────────────────────────────────────────────
-function downloadICS(poll) {
+function icsTimestamp(d) {
+  return d.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+}
+
+function icsEscape(str) {
+  return String(str).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+function confirmedSlotRange(poll) {
   const slot = poll.slots.find(s => s.id === poll.confirmedSlot);
-  if (!slot) return;
+  if (!slot) return null;
   const start = new Date(slot.datetime);
   const end   = new Date(slot.endDatetime || slot.datetime + 60 * 60 * 1000); // slot end, or default 1 hour
-  const fmt   = d => d.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+  return { slot, start, end };
+}
+
+function downloadICS(poll) {
+  const range = confirmedSlotRange(poll);
+  if (!range) return;
+  const { slot, start, end } = range;
   const ics = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', "PRODID:-//Huddle//EN",
     'BEGIN:VEVENT',
-    `DTSTART:${fmt(start)}`, `DTEND:${fmt(end)}`,
-    `SUMMARY:${poll.title}`,
-    `DESCRIPTION:Scheduled via Huddle`,
+    `DTSTAMP:${icsTimestamp(new Date())}`,
+    `DTSTART:${icsTimestamp(start)}`, `DTEND:${icsTimestamp(end)}`,
+    `SUMMARY:${icsEscape(poll.title)}`,
+    `DESCRIPTION:${icsEscape('Scheduled via Huddle')}`,
     `UID:${poll.id}-${slot.id}@bradyslittlehelper`,
     'END:VEVENT', 'END:VCALENDAR'
   ].join('\r\n');
@@ -2609,6 +2778,19 @@ function downloadICS(poll) {
   a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
   a.download = poll.title.replace(/[^a-z0-9]/gi, '-') + '.ics';
   a.click();
+}
+
+function googleCalendarUrl(poll) {
+  const range = confirmedSlotRange(poll);
+  if (!range) return '';
+  const { start, end } = range;
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: poll.title,
+    dates: `${icsTimestamp(start)}/${icsTimestamp(end)}`,
+    details: 'Scheduled via Huddle'
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 // ────────────────────────────────────────────────────
@@ -2800,7 +2982,8 @@ function clearVoteRecord(pollId) {
   localStorage.removeItem('voted_' + pollId);
 }
 
-function renderAlreadyVotedCard(name, pollId) {
+function renderAlreadyVotedCard(name, pollId, tz) {
+  const tzSuffix = tz ? ` · ${esc(friendlyTzName(tz))}` : '';
   return `
     <div class="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3.5">
       <div class="w-8 h-8 bg-green-500 rounded-xl flex items-center justify-center shrink-0">
@@ -2808,7 +2991,7 @@ function renderAlreadyVotedCard(name, pollId) {
       </div>
       <div class="flex-1 min-w-0">
         <div class="text-sm font-semibold text-green-800">You already voted</div>
-        <div class="text-xs text-green-600">Submitted as <strong>${esc(name)}</strong></div>
+        <div class="text-xs text-green-600">Submitted as <strong>${esc(name)}</strong>${tzSuffix}</div>
       </div>
       <button onclick="changeVote('${pollId}')"
         class="text-xs text-green-700 border border-green-200 bg-white hover:bg-green-50 px-3 py-1.5 rounded-lg shrink-0 transition-all">

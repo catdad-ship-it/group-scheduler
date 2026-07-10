@@ -126,13 +126,15 @@ Below supersedes the old one-shot "Phase 4" draft. Source: a product-review back
 
 Small, no new infra, directly improves the core flow every poll already goes through (vote → confirm). Fastest path to shipping something.
 
-- [ ] Voter self-edit — let a voter reopen their own submission via their link and change their response, instead of the organizer deleting-and-redoing via admin.
-- [ ] Post-confirmation screen — a clean "you're locked in" screen with full details after a slot is confirmed.
-- [ ] Calendar export: `.ics` download + Google Calendar link on the confirmed slot (pairs directly with the above).
-- [ ] Timezone confirmation on vote submit — "your response was recorded in Eastern Time," so cross-org confusion doesn't surface later as a no-show.
-- [ ] Real-time results — poll for new votes every few seconds on the results view instead of requiring a manual refresh.
+- [~] Voter self-edit — deferred at Brady's request during the 2026-07-10 build round. Research is done and preserved (see the plan history): the server already does a blind upsert on `(poll_id, name_lower)` with no ownership check, so this is a UX problem (helping a voter find/reopen their own response), not a security one. Two viable approaches scoped — a same-session name-lookup (no new infra) or a personal magic-link edit token (schema change, sets up Phase 5's email nudges to reuse the same token) — pick back up whenever ready.
+- [x] Post-confirmation screen — a clean "you're locked in" screen (`renderConfirmedScreen`) shown to non-owner voters once a schedule poll's slot is confirmed, with a "View full details" escape hatch back to the full vote/results view. Scoped to `type === 'schedule'` only — the only poll type with a single "winning slot" concept.
+- [x] Calendar export: hardened the existing `downloadICS()` (added `DTSTAMP`, escaped ICS special characters — a comma in the poll title previously produced a malformed file) and added a Google Calendar link (`googleCalendarUrl()`) next to it, both in the confirmed banner and the new locked-in screen.
+- [x] Timezone confirmation on vote submit — scoped to `schedule` and `availability` (the only types where timezone carries real time-of-day meaning; `rsvp`/`question` hardcode `'UTC'` with no time-of-day concept, correctly left untouched). Shows a toast naming the recorded timezone (`friendlyTzName()`) on submit, and persistently surfaces it in the "already voted" card too, since a toast alone is easy to miss.
+- [x] Real-time results — polls `GET /api/polls/:id` every 5s while a poll view is open (`startPollRefresh`/`refreshPollTick`), pausing while the tab is hidden and catching up instantly on `visibilitychange`. Guards against stomping an in-progress vote form (`isVoteFormActive()`) by doing a partial DOM update (`refreshResultsOnly()`) instead of a full re-render in that case.
 
-**Acceptance:** a voter can revise their own response without organizer help; confirming a slot shows a clear locked-in screen with an .ics attendees can add; votes carry an explicit timezone; results update without a manual refresh.
+All verified locally 2026-07-10 against the dev server, across all four poll types (schedule/rsvp/question/availability) where applicable — including a real two-source polling test (a background `curl` vote landing automatically within one interval) and confirming an in-progress name field survives a background refresh untouched.
+
+**Acceptance:** confirming a slot shows a clear locked-in screen with an .ics/Google Calendar link attendees can add (✅); votes carry an explicit timezone, confirmed to the voter (✅); results update without a manual refresh (✅); a voter can revise their own response without organizer help (deferred — not yet built).
 
 ### Phase 5 — Chase-the-voter workflows
 
