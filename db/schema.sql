@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS magic_link_tokens (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_magic_link_tokens_email ON magic_link_tokens(email);
+CREATE INDEX IF NOT EXISTS idx_magic_link_tokens_expires_at ON magic_link_tokens(expires_at);
 
 CREATE TABLE IF NOT EXISTS polls (
   id              TEXT PRIMARY KEY,

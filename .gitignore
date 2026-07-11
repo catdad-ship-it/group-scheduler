@@ -1,4 +1,5 @@
 .env
+polls.json
 cookies.txt
 polls-backup-*.json
 polls-live-snapshot.json

@@ -13,6 +13,7 @@ RUN mkdir -p /data
 
 ENV PORT=3000
 ENV DATA_DIR=/data
+ENV NODE_ENV=production
 
 EXPOSE 3000
 

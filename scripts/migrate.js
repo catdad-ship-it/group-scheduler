@@ -67,7 +67,7 @@ async function migratePoll(client, poll, ownerId) {
          created_at = EXCLUDED.created_at, deadline = EXCLUDED.deadline,
          expected_voters = EXCLUDED.expected_voters, confirmed_slot = EXCLUDED.confirmed_slot`,
       [poll.id, ownerId, poll.type, poll.title, poll.creatorName, poll.description,
-       poll.createdAt, poll.deadline, poll.expectedVoters, poll.confirmedSlot]
+       poll.createdAt, poll.deadline, JSON.stringify(poll.expectedVoters), poll.confirmedSlot]
     );
 
     for (let i = 0; i < poll.slots.length; i++) {

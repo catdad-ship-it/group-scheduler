@@ -3,10 +3,29 @@ const path = require('path');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
+const helmet = require('helmet');
 
 const app = express();
 app.set('trust proxy', true);
+// CSP is left off for now: the page loads Tailwind/lucide from a CDN and
+// relies on inline <script>/onclick handlers, so a real policy needs a
+// broader frontend pass (tracked in CODE_REVIEW_PLAN.md 1.3/4.7) rather than
+// a same-session bolt-on. The rest of helmet's defaults (nosniff, frame
+// denial, referrer policy, HSTS, etc.) still apply.
+app.use(helmet({ contentSecurityPolicy: false }));
 const PORT = process.env.PORT || 3000;
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
+
+function requireProdEnv(name) {
+  if (IS_PRODUCTION && !process.env[name]) {
+    console.error(`FATAL: ${name} env var must be set in production.`);
+    process.exit(1);
+  }
+}
+requireProdEnv('DATABASE_URL');
+requireProdEnv('JWT_SECRET');
+requireProdEnv('APP_BASE_URL');
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://localhost:5432/group_scheduler_dev';
 if (!process.env.DATABASE_URL) {
@@ -93,6 +112,11 @@ const magicLinkAttempts = new Map(); // ip → { count, resetAt }
 const RATE_LIMIT  = 10;
 const RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
 
+const voteAttempts = new Map(); // ip → { count, resetAt }
+const VOTE_RATE_LIMIT  = 30;
+const VOTE_RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
+const MAX_VOTES_PER_POLL = 500;
+
 function checkRateLimit(store, key, limit, windowMs) {
   const now    = Date.now();
   const record = store.get(key) || { count: 0, resetAt: now + windowMs };
@@ -106,17 +130,43 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-function generateId() {
-  return crypto.randomBytes(4).toString('hex');
+// Magic-link tokens are stored hashed — a DB leak alone shouldn't hand out
+// working login tokens for anyone with a pending link.
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function generateId() {
+  return crypto.randomBytes(8).toString('hex');
+}
+
+// Fly's edge always sets fly-client-ip to the real connecting IP (clients
+// can't override it, unlike X-Forwarded-For, which they can prepend to).
+// Fall back to the last XFF hop for non-Fly environments.
 function clientIp(req) {
-  return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+  const flyIp = req.headers['fly-client-ip'];
+  if (flyIp) return flyIp;
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) {
+    const hops = xff.split(',').map(s => s.trim()).filter(Boolean);
+    if (hops.length) return hops[hops.length - 1];
+  }
+  return req.socket.remoteAddress || 'unknown';
 }
 
 function generateSlotKey() {
   return 's' + crypto.randomBytes(4).toString('hex');
 }
+
+// Express 4 doesn't catch rejected promises from async route handlers —
+// an unhandled rejection would otherwise crash the whole process.
+function asyncHandler(fn) {
+  return (req, res, next) => fn(req, res, next).catch(next);
+}
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
+});
 
 // Most endpoints take tiny JSON bodies, kept at a tight 16kb. The branding
 // PATCH is the exception — it carries a base64 logo — so it gets a larger cap
@@ -146,10 +196,18 @@ function validateDescription(description) {
   return { value: description.trim() };
 }
 
-function validateDeadline(deadline) {
+const DEADLINE_MAX_FUTURE_MS = 5 * 365 * 24 * 60 * 60 * 1000; // +5 years
+
+// isCreate gates the "not absurdly in the past" check: edits re-submit the
+// poll's existing deadline verbatim (see index.html's PATCH body), which for
+// an already-closed poll is legitimately long past — only a brand-new
+// deadline needs to look like a real near-future date.
+function validateDeadline(deadline, isCreate) {
   if (deadline === undefined || deadline === null || deadline === '') return { value: null };
   const ms = Number(deadline);
   if (!Number.isFinite(ms)) return { error: 'Invalid deadline.' };
+  if (isCreate && ms < Date.now() - 24 * 60 * 60 * 1000) return { error: 'Deadline can\'t be in the past.' };
+  if (ms > Date.now() + DEADLINE_MAX_FUTURE_MS) return { error: 'Deadline is too far in the future.' };
   return { value: ms };
 }
 
@@ -266,7 +324,9 @@ function serializePoll(poll, slots, votes, isOwner) {
     description: poll.description,
     createdAt: poll.created_at.toISOString(),
     deadline: poll.deadline !== null ? Number(poll.deadline) : null,
-    expectedVoters: poll.expected_voters,
+    expectedVoters: isOwner
+      ? poll.expected_voters
+      : (poll.expected_voters || []).map(v => ({ name: v.name })),
     confirmedSlot: poll.confirmed_slot,
     isOwner: !!isOwner,
     // Client grouping (Phase 7). client_id is on the poll row; client_name is
@@ -371,7 +431,7 @@ async function resolveClientId(clientId, ownerId) {
 // ─── ROUTES ──────────────────────────────────────────────────────────────────
 
 // Request a magic login link
-app.post('/api/auth/magic-link', async (req, res) => {
+app.post('/api/auth/magic-link', asyncHandler(async (req, res) => {
   if (!checkRateLimit(magicLinkAttempts, clientIp(req), RATE_LIMIT, RATE_WINDOW)) {
     return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
   }
@@ -382,9 +442,11 @@ app.post('/api/auth/magic-link', async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
   const token = generateToken();
   const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_MS);
-  await pool.query('INSERT INTO magic_link_tokens (token, email, expires_at) VALUES ($1,$2,$3)', [token, normalizedEmail, expiresAt]);
+  // A fresh link supersedes any older unused ones for this email.
+  await pool.query('UPDATE magic_link_tokens SET used_at = now() WHERE email = $1 AND used_at IS NULL', [normalizedEmail]);
+  await pool.query('INSERT INTO magic_link_tokens (token, email, expires_at) VALUES ($1,$2,$3)', [hashToken(token), normalizedEmail, expiresAt]);
 
-  const link = `${req.protocol}://${req.get('host')}/api/auth/verify?token=${token}`;
+  const link = `${APP_BASE_URL}/api/auth/verify?token=${token}`;
   try {
     await sendMagicLinkEmail(normalizedEmail, link);
   } catch (e) {
@@ -392,21 +454,68 @@ app.post('/api/auth/magic-link', async (req, res) => {
     return res.status(502).json({ error: 'Could not send the login email. Try again in a moment.' });
   }
   res.json({ success: true });
+}));
+
+const TOKEN_RE = /^[0-9a-f]{64}$/;
+
+// Serve an interstitial instead of consuming the token on GET — email
+// scanners (Outlook SafeLinks etc.) prefetch links and would otherwise burn
+// the token, log the scanner in, and lock the real user out before they ever
+// click.
+app.get('/api/auth/verify', (req, res) => {
+  const token = req.query.token;
+  if (typeof token !== 'string' || !TOKEN_RE.test(token)) return res.redirect('/?authError=invalid');
+  res.set('Content-Type', 'text/html').send(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Log in to Huddle</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:2rem;text-align:center;max-width:360px}
+button{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.75rem 1.5rem;font-size:1rem;cursor:pointer;margin-top:1rem}
+button:disabled{opacity:.6;cursor:default}
+p{color:#475569}</style></head>
+<body><div class="card">
+<h1 style="font-size:1.25rem;margin:0 0 .5rem">Log in to Huddle</h1>
+<p>Click below to finish logging in.</p>
+<button id="go">Continue to Huddle</button>
+<p id="err" style="color:#dc2626;display:none"></p>
+</div>
+<script>
+document.getElementById('go').addEventListener('click', async function () {
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Logging in…';
+  try {
+    var res = await fetch('/api/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: ${JSON.stringify(token)} })
+    });
+    if (!res.ok) throw new Error();
+    window.location.href = '/dashboard?loggedIn=1';
+  } catch (e) {
+    document.getElementById('err').textContent = 'This link has expired or already been used.';
+    document.getElementById('err').style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Continue to Huddle';
+  }
+});
+</script>
+</body></html>`);
 });
 
-// Verify a magic link and start a session
-app.get('/api/auth/verify', async (req, res) => {
-  const token = req.query.token;
-  if (typeof token !== 'string' || !token) return res.redirect('/?authError=invalid');
+// Consume the token and start a session (called by the interstitial above).
+app.post('/api/auth/verify', asyncHandler(async (req, res) => {
+  const token = req.body && req.body.token;
+  if (typeof token !== 'string' || !TOKEN_RE.test(token)) return res.status(400).json({ error: 'Invalid token.' });
 
   const tokenRes = await pool.query(
     `UPDATE magic_link_tokens SET used_at = now()
      WHERE token = $1 AND used_at IS NULL AND expires_at > now()
      RETURNING email`,
-    [token]
+    [hashToken(token)]
   );
   const row = tokenRes.rows[0];
-  if (!row) return res.redirect('/?authError=expired');
+  if (!row) return res.status(400).json({ error: 'This link has expired or already been used.' });
 
   const userRes = await pool.query(
     `INSERT INTO users (email) VALUES ($1)
@@ -415,8 +524,8 @@ app.get('/api/auth/verify', async (req, res) => {
     [row.email]
   );
   setSessionCookie(res, userRes.rows[0]);
-  res.redirect('/dashboard?loggedIn=1');
-});
+  res.json({ success: true });
+}));
 
 // Logout
 app.post('/api/logout', (req, res) => {
@@ -431,12 +540,12 @@ app.get('/api/auth-status', (req, res) => {
 });
 
 // Admin: list the current user's polls
-app.get('/api/admin/polls', async (req, res) => {
+app.get('/api/admin/polls', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
   const polls = await loadPollsByOwner(user.id);
   res.json(polls);
-});
+}));
 
 // ─── BRANDING (Phase 6) ────────────────────────────────────────────────────
 // Account-level logo + accent color shown on the voting page a client sees.
@@ -444,6 +553,10 @@ app.get('/api/admin/polls', async (req, res) => {
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 // data:image/<type>;base64,<payload> — the only shape we accept for a logo.
+// svg+xml is allowed here on the assumption the frontend only ever renders
+// this value via <img src="...">, which doesn't execute embedded <script>/
+// event-handler content — never via innerHTML or <object>. If that ever
+// changes, drop svg+xml from this list first.
 const LOGO_DATA_URI_RE = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/]+={0,2}$/;
 const MAX_LOGO_CHARS = 200 * 1024; // ~200KB of base64 (~150KB raw) — plenty for a logo
 
@@ -464,16 +577,16 @@ function validateBrandLogo(logo) {
 }
 
 // Get the current user's branding (for the settings page)
-app.get('/api/branding', async (req, res) => {
+app.get('/api/branding', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
   const r = await pool.query('SELECT brand_logo, brand_color FROM users WHERE id = $1', [user.id]);
   const row = r.rows[0] || {};
   res.json({ logo: row.brand_logo || null, color: row.brand_color || null });
-});
+}));
 
 // Update the current user's branding
-app.patch('/api/branding', async (req, res) => {
+app.patch('/api/branding', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
 
@@ -496,7 +609,7 @@ app.patch('/api/branding', async (req, res) => {
   values.push(user.id);
   await pool.query(`UPDATE users SET ${setClauses.join(', ')} WHERE id = $${values.length}`, values);
   res.json({ success: true });
-});
+}));
 
 // ─── CLIENTS (Phase 7) ─────────────────────────────────────────────────────
 // Owner-only grouping of polls by client. No public exposure.
@@ -508,7 +621,7 @@ function validateClientName(name) {
 }
 
 // List the current user's clients, each with a live poll count.
-app.get('/api/clients', async (req, res) => {
+app.get('/api/clients', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
   const r = await pool.query(
@@ -519,10 +632,10 @@ app.get('/api/clients', async (req, res) => {
     [user.id]
   );
   res.json(r.rows.map(row => ({ id: Number(row.id), name: row.name, pollCount: row.poll_count })));
-});
+}));
 
 // Create a client.
-app.post('/api/clients', async (req, res) => {
+app.post('/api/clients', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
   const nameR = validateClientName(req.body && req.body.name);
@@ -532,10 +645,10 @@ app.post('/api/clients', async (req, res) => {
     [user.id, nameR.value]
   );
   res.json({ id: Number(r.rows[0].id), name: r.rows[0].name, pollCount: 0 });
-});
+}));
 
 // The client hub: the client plus all of the owner's polls for it.
-app.get('/api/clients/:id', async (req, res) => {
+app.get('/api/clients/:id', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
   const cRes = await pool.query('SELECT id, name FROM clients WHERE id = $1 AND owner_id = $2', [req.params.id, user.id]);
@@ -543,10 +656,10 @@ app.get('/api/clients/:id', async (req, res) => {
   if (!client) return res.status(404).json({ error: 'Client not found.' });
   const polls = await loadPollsByOwner(user.id, { clientId: Number(client.id) });
   res.json({ id: Number(client.id), name: client.name, polls });
-});
+}));
 
 // Rename a client.
-app.patch('/api/clients/:id', async (req, res) => {
+app.patch('/api/clients/:id', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
   const nameR = validateClientName(req.body && req.body.name);
@@ -557,24 +670,27 @@ app.patch('/api/clients/:id', async (req, res) => {
   );
   if (!r.rows[0]) return res.status(404).json({ error: 'Client not found.' });
   res.json({ success: true });
-});
+}));
 
 // Delete a client. Its polls are preserved (client_id set to null by the FK).
-app.delete('/api/clients/:id', async (req, res) => {
+app.delete('/api/clients/:id', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
   const r = await pool.query('DELETE FROM clients WHERE id = $1 AND owner_id = $2', [req.params.id, user.id]);
   if (r.rowCount === 0) return res.status(404).json({ error: 'Client not found.' });
   res.json({ success: true });
-});
+}));
 
 // Create a new poll (requires an account)
-app.post('/api/polls', async (req, res) => {
+app.post('/api/polls', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Log in to create a poll.' });
 
   const { title, creatorName, description, slots, type, deadline, expectedVoters, clientId } = req.body;
   const VALID_TYPES = ['schedule', 'question', 'rsvp', 'availability'];
+  if (type !== undefined && !VALID_TYPES.includes(type)) {
+    return res.status(400).json({ error: 'Invalid poll type.' });
+  }
   const pollType = VALID_TYPES.includes(type) ? type : 'schedule';
 
   if (creatorName !== undefined && creatorName !== null &&
@@ -586,7 +702,7 @@ app.post('/api/polls', async (req, res) => {
   if (titleR.error) return res.status(400).json({ error: titleR.error });
   const descR = validateDescription(description);
   if (descR.error) return res.status(400).json({ error: descR.error });
-  const deadlineR = validateDeadline(deadline);
+  const deadlineR = validateDeadline(deadline, true);
   if (deadlineR.error) return res.status(400).json({ error: deadlineR.error });
   const votersR = validateExpectedVoters(expectedVoters);
   if (votersR.error) return res.status(400).json({ error: votersR.error });
@@ -608,20 +724,30 @@ app.post('/api/polls', async (req, res) => {
     slots: slotsR.value.map((s, i) => ({ id: `s${i}`, ...s }))
   };
 
-  await createPoll(poll, user.id);
+  try {
+    await createPoll(poll, user.id);
+  } catch (e) {
+    if (e.code !== '23505') throw e; // unique_violation — anything else is a real failure
+    poll.id = generateId(); // id collision: astronomically unlikely, but cheap to retry once
+    await createPoll(poll, user.id);
+  }
   res.json({ id: poll.id });
-});
+}));
 
 // Get a poll by ID (public — voting page)
-app.get('/api/polls/:id', async (req, res) => {
+app.get('/api/polls/:id', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   const poll = await loadPollById(req.params.id, user ? user.id : null);
   if (!poll) return res.status(404).json({ error: 'Poll not found.' });
   res.json(poll);
-});
+}));
 
 // Submit a vote (public — voting stays anonymous)
-app.post('/api/polls/:id/vote', async (req, res) => {
+app.post('/api/polls/:id/vote', asyncHandler(async (req, res) => {
+  if (!checkRateLimit(voteAttempts, clientIp(req), VOTE_RATE_LIMIT, VOTE_RATE_WINDOW)) {
+    return res.status(429).json({ error: 'Too many votes submitted. Try again later.' });
+  }
+
   const { name, timezone, responses } = req.body;
 
   if (!name || !timezone || !responses || typeof responses !== 'object' || Array.isArray(responses)) {
@@ -652,6 +778,7 @@ app.post('/api/polls/:id/vote', async (req, res) => {
   // Sanitize responses: only accept valid slot IDs with valid values
   const yesMaybeNo = new Set(['yes', 'maybe', 'no']);
   const yesNo       = new Set(['yes', 'no']);
+  const RANK_RE     = /^\d+$/; // strict — parseInt would accept junk like "2abc"
   const sanitized = {};
   for (const [k, v] of Object.entries(responses)) {
     if (!validSlotIds.has(k)) continue;
@@ -659,9 +786,16 @@ app.post('/api/polls/:id/vote', async (req, res) => {
       if (yesMaybeNo.has(v)) sanitized[k] = v;
     } else if (poll.type === 'availability') {
       if (yesNo.has(v)) sanitized[k] = v;
-    } else {
-      const rank = parseInt(v);
-      if (Number.isInteger(rank) && rank >= 1 && rank <= validSlotIds.size) sanitized[k] = String(rank);
+    } else if (typeof v === 'string' && RANK_RE.test(v)) {
+      const rank = Number(v);
+      if (rank >= 1 && rank <= validSlotIds.size) sanitized[k] = String(rank);
+    }
+  }
+
+  if (poll.type === 'question') {
+    const ranks = Object.values(sanitized);
+    if (new Set(ranks).size !== ranks.length) {
+      return res.status(400).json({ error: 'Each option must have a unique rank.' });
     }
   }
 
@@ -671,6 +805,13 @@ app.post('/api/polls/:id/vote', async (req, res) => {
     [req.params.id, trimmedName]
   );
   const isNewVoter = existingRes.rowCount === 0;
+
+  if (isNewVoter) {
+    const countRes = await pool.query('SELECT COUNT(*)::int AS c FROM votes WHERE poll_id = $1', [req.params.id]);
+    if (countRes.rows[0].c >= MAX_VOTES_PER_POLL) {
+      return res.status(403).json({ error: 'This poll has reached its maximum number of responses.' });
+    }
+  }
 
   await pool.query(
     `INSERT INTO votes (poll_id, name, timezone, responses, submitted_at)
@@ -685,7 +826,7 @@ app.post('/api/polls/:id/vote', async (req, res) => {
   if (isNewVoter) {
     notifyNewResponse(poll, trimmedName).catch(e => console.error('notifyNewResponse failed:', e));
   }
-});
+}));
 
 // Email the poll owner that a new response came in — fire-and-forget, never
 // allowed to affect the vote response itself.
@@ -711,7 +852,7 @@ async function notifyNewResponse(poll, voterName) {
 const nudgeAttempts = new Map(); // `${pollId}:${nameLower}` -> last-sent timestamp
 const NUDGE_COOLDOWN_MS = 15 * 60 * 1000;
 
-app.post('/api/polls/:id/nudge', async (req, res) => {
+app.post('/api/polls/:id/nudge', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
 
@@ -760,10 +901,10 @@ app.post('/api/polls/:id/nudge', async (req, res) => {
     console.error('Failed to send nudge email:', e);
     res.status(502).json({ error: 'Could not send the nudge email. Try again in a moment.' });
   }
-});
+}));
 
 // Confirm a slot as the final time (owner only)
-app.post('/api/polls/:id/confirm', async (req, res) => {
+app.post('/api/polls/:id/confirm', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
 
@@ -778,10 +919,10 @@ app.post('/api/polls/:id/confirm', async (req, res) => {
 
   await pool.query('UPDATE polls SET confirmed_slot = $1 WHERE id = $2', [slotId, req.params.id]);
   res.json({ success: true });
-});
+}));
 
 // Unconfirm a slot (owner only)
-app.post('/api/polls/:id/unconfirm', async (req, res) => {
+app.post('/api/polls/:id/unconfirm', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
 
@@ -790,7 +931,7 @@ app.post('/api/polls/:id/unconfirm', async (req, res) => {
 
   await pool.query('UPDATE polls SET confirmed_slot = NULL WHERE id = $1', [req.params.id]);
   res.json({ success: true });
-});
+}));
 
 // Replace a poll's slots in place, preserving slot_key identity for values
 // that didn't change (so existing votes stay attached to the right option).
@@ -847,7 +988,7 @@ async function updatePollSlots(client, pollId, newSlots) {
 }
 
 // Update a poll's title/description/deadline/expectedVoters/slots (owner only)
-app.patch('/api/polls/:id', async (req, res) => {
+app.patch('/api/polls/:id', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
 
@@ -913,35 +1054,53 @@ app.patch('/api/polls/:id', async (req, res) => {
   }
 
   res.json({ success: true });
-});
+}));
 
 // Delete a poll (owner only)
-app.delete('/api/polls/:id', async (req, res) => {
+app.delete('/api/polls/:id', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
 
   const result = await pool.query('DELETE FROM polls WHERE id = $1 AND owner_id = $2', [req.params.id, user.id]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Poll not found.' });
   res.json({ success: true });
-});
+}));
 
 // Delete a specific vote (owner only)
-app.delete('/api/polls/:id/votes/:voterName', async (req, res) => {
+app.delete('/api/polls/:id/votes/:voterName', asyncHandler(async (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized.' });
 
   const pollRes = await pool.query('SELECT id FROM polls WHERE id = $1 AND owner_id = $2', [req.params.id, user.id]);
   if (!pollRes.rows[0]) return res.status(404).json({ error: 'Poll not found.' });
 
-  const name = decodeURIComponent(req.params.voterName);
-  const result = await pool.query('DELETE FROM votes WHERE poll_id = $1 AND name = $2', [req.params.id, name]);
+  // Express already decodes route params — decoding again mangles names
+  // with a literal '%' (e.g. "100% Bob" throws URIError) and double-decodes
+  // legitimately-encoded ones. Match by name_lower for the same
+  // case-insensitive identity the (poll_id, name_lower) uniqueness uses.
+  const result = await pool.query('DELETE FROM votes WHERE poll_id = $1 AND name_lower = lower($2)', [req.params.id, req.params.voterName]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Vote not found.' });
   res.json({ success: true });
+}));
+
+// A typo'd/unknown API path should 404 as JSON, not fall through to the
+// index.html catch-all below (which breaks client res.json() parsing).
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: 'Not found' });
 });
 
 // Fallback: serve index.html for all other routes
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Final error handler — catches anything asyncHandler forwards (or thrown
+// synchronously by a route) so one bad request/DB hiccup can't take the
+// whole process down.
+app.use((err, req, res, next) => {
+  console.error('Unhandled route error:', err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: 'Internal server error.' });
 });
 
 // ─── DEADLINE REMINDERS (organizer-only, per Phase 5) ─────────────────────────
@@ -1002,8 +1161,39 @@ async function runDeadlineReminderSweep() {
   }
 }
 
-setInterval(runDeadlineReminderSweep, REMINDER_SWEEP_INTERVAL_MS);
-runDeadlineReminderSweep();
+async function cleanupMagicLinkTokens() {
+  try {
+    await pool.query(`DELETE FROM magic_link_tokens WHERE expires_at < now() - interval '1 day'`);
+  } catch (e) {
+    console.error('Magic link token cleanup failed:', e);
+  }
+}
+
+// The in-memory rate-limit/cooldown maps (magicLinkAttempts, voteAttempts:
+// { count, resetAt }; nudgeAttempts: raw last-sent timestamp) are never
+// evicted otherwise — a long-lived process would leak memory, and an
+// attacker spoofing IPs could inflate them faster still.
+function purgeStaleRateLimitEntries() {
+  const now = Date.now();
+  for (const [key, record] of magicLinkAttempts) {
+    if (record.resetAt < now) magicLinkAttempts.delete(key);
+  }
+  for (const [key, record] of voteAttempts) {
+    if (record.resetAt < now) voteAttempts.delete(key);
+  }
+  for (const [key, lastSent] of nudgeAttempts) {
+    if (now - lastSent > NUDGE_COOLDOWN_MS) nudgeAttempts.delete(key);
+  }
+}
+
+async function runMaintenanceSweep() {
+  await runDeadlineReminderSweep();
+  await cleanupMagicLinkTokens();
+  purgeStaleRateLimitEntries();
+}
+
+setInterval(runMaintenanceSweep, REMINDER_SWEEP_INTERVAL_MS);
+runMaintenanceSweep();
 
 // ─── START ───────────────────────────────────────────────────────────────────
 

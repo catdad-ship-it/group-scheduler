@@ -17,7 +17,11 @@ primary_region = "ord"
   auto_stop_machines = true
   force_https = true
   internal_port = 3000
-  min_machines_running = 0
+  # Kept >=1 so the in-process deadline-reminder sweep (setInterval in
+  # server.js) keeps running even with no inbound traffic — with
+  # auto_stop_machines and 0 here, a quiet poll's "closes within 24h" email
+  # could silently never fire (or fire late, whenever someone next visits).
+  min_machines_running = 1
   processes = ["app"]
 
 [[vm]]
