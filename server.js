@@ -371,25 +371,49 @@ async function loadPollById(id, viewerUserId) {
   return serializePoll(poll, slotsRes.rows, votesRes.rows, isOwner);
 }
 
+// Summary shape for list views (dashboard, client hub) — neither renders
+// slots/votes/branding/expectedVoters, just a title/type/date/vote count per
+// card, so this skips fetching (and shipping over the wire) full poll detail
+// for every row. Full detail is a separate GET /api/polls/:id fetch on open.
+function serializePollSummary(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    createdAt: row.created_at.toISOString(),
+    deadline: row.deadline !== null ? Number(row.deadline) : null,
+    confirmedSlot: row.confirmed_slot,
+    clientId: row.client_id != null ? Number(row.client_id) : null,
+    clientName: row.client_name || null,
+    voteCount: row.vote_count
+  };
+}
+
 async function loadPollsByOwner(ownerId, { clientId } = {}) {
   const params = [ownerId];
   let where = 'p.owner_id = $1';
   if (clientId !== undefined) { params.push(clientId); where += ` AND p.client_id = $${params.length}`; }
   const pollsRes = await pool.query(
-    `SELECT p.*, c.name AS client_name
+    `SELECT p.id, p.type, p.title, p.created_at, p.deadline, p.confirmed_slot, p.client_id, c.name AS client_name,
+            (SELECT COUNT(*) FROM votes v WHERE v.poll_id = p.id)::int AS vote_count
      FROM polls p LEFT JOIN clients c ON c.id = p.client_id
      WHERE ${where} ORDER BY p.created_at DESC`,
     params
   );
-  const polls = [];
-  for (const poll of pollsRes.rows) {
-    const [slotsRes, votesRes] = await Promise.all([
-      pool.query('SELECT * FROM slots WHERE poll_id = $1 ORDER BY sort_order', [poll.id]),
-      pool.query('SELECT * FROM votes WHERE poll_id = $1 ORDER BY submitted_at', [poll.id])
-    ]);
-    polls.push(serializePoll(poll, slotsRes.rows, votesRes.rows, true));
-  }
-  return polls;
+  return pollsRes.rows.map(serializePollSummary);
+}
+
+// Builds a "($1,$2,...),($n+1,...)..." VALUES clause + flat params array for
+// a multi-row INSERT, so writing N slots is one round trip instead of N.
+function buildBulkValues(rows) {
+  const width = rows[0].length;
+  const params = [];
+  const valuesSql = rows.map((row, i) => {
+    const placeholders = row.map((_, j) => `$${i * width + j + 1}`);
+    params.push(...row);
+    return `(${placeholders.join(',')})`;
+  }).join(',');
+  return { valuesSql, params };
 }
 
 async function createPoll(poll, ownerId) {
@@ -401,11 +425,12 @@ async function createPoll(poll, ownerId) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [poll.id, ownerId, poll.type, poll.title, poll.creatorName, poll.description, new Date(poll.createdAt), poll.deadline, JSON.stringify(poll.expectedVoters), poll.clientId ?? null]
     );
-    for (let i = 0; i < poll.slots.length; i++) {
-      const s = poll.slots[i];
+    if (poll.slots.length) {
+      const rows = poll.slots.map((s, i) => [poll.id, s.id, s.datetime ?? null, s.endDatetime ?? null, s.label ?? null, i]);
+      const { valuesSql, params } = buildBulkValues(rows);
       await client.query(
-        `INSERT INTO slots (poll_id, slot_key, datetime, end_datetime, label, sort_order) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [poll.id, s.id, s.datetime ?? null, s.endDatetime ?? null, s.label ?? null, i]
+        `INSERT INTO slots (poll_id, slot_key, datetime, end_datetime, label, sort_order) VALUES ${valuesSql}`,
+        params
       );
     }
     await client.query('COMMIT');
@@ -966,15 +991,16 @@ async function updatePollSlots(client, pollId, newSlots) {
     await client.query('DELETE FROM slots WHERE poll_id = $1 AND slot_key = ANY($2)', [pollId, keysToDelete]);
   }
 
-  for (let i = 0; i < resolved.length; i++) {
-    const s = resolved[i];
+  if (resolved.length) {
+    const rows = resolved.map((s, i) => [pollId, s.slot_key, s.datetime ?? null, s.endDatetime ?? null, s.label ?? null, i]);
+    const { valuesSql, params } = buildBulkValues(rows);
     await client.query(
       `INSERT INTO slots (poll_id, slot_key, datetime, end_datetime, label, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6)
+       VALUES ${valuesSql}
        ON CONFLICT (poll_id, slot_key) DO UPDATE SET
          datetime = EXCLUDED.datetime, end_datetime = EXCLUDED.end_datetime,
          label = EXCLUDED.label, sort_order = EXCLUDED.sort_order`,
-      [pollId, s.slot_key, s.datetime ?? null, s.endDatetime ?? null, s.label ?? null, i]
+      params
     );
   }
 

@@ -6,11 +6,6 @@ primary_region = "ord"
 
 [env]
   PORT = "3000"
-  DATA_DIR = "/data"
-
-[[mounts]]
-  source = "scheduler_data"
-  destination = "/data"
 
 [http_service]
   auto_start_machines = true

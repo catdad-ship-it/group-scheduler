@@ -9,8 +9,15 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <meta name="theme-color" content="#2563eb">
 
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind CSS — pinned version (not @latest) so a supply-chain
+       compromise can't silently serve different JS on the next @latest
+       resolve. No SRI here: cdn.tailwindcss.com doesn't send
+       Access-Control-Allow-Origin on cross-origin (Origin-header) requests,
+       so crossorigin+integrity makes the browser refuse to load it at all
+       (verified — this isn't a "just add integrity=" CDN). Still the Play
+       CDN "not for production" build; a real build step is a separate,
+       bigger change (tracked in CODE_REVIEW_PLAN.md 4.7). -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -21,8 +28,13 @@
     }
   </script>
 
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <!-- Lucide Icons — pinned version + SRI, same reasoning as Tailwind above -->
+  <script src="https://unpkg.com/lucide@1.24.0/dist/umd/lucide.min.js"
+    integrity="sha384-mooE85Luwgx+AyykX7e90VcN8/QCFTSIwPuHLmvcsLVoA0en7lKYb9XlOzn5G2co"
+    crossorigin="anonymous"></script>
+
+  <!-- QR code generator (self-hosted — see public/vendor/qrcode.js for provenance) -->
+  <script src="/vendor/qrcode.js"></script>
 
   <style>
     /* ── View routing ─────────────────────────────── */
@@ -702,6 +714,7 @@ let editingPollId      = null; // set while the create view is being used to edi
 let showFullDetails    = false; // voter opted past the post-confirmation "locked in" screen to see full results
 let pollRefreshTimer   = null; // interval id for the real-time results poll, active while a poll view is open
 let previewAsVoter     = false; // owner previewing the poll exactly as a non-owner invitee sees it
+let lastPollETag       = null; // ETag of the last-fetched poll body, so the 5s refresh can send If-None-Match and skip re-render on 304
 
 // ────────────────────────────────────────────────────
 // AUTH / NAV STATE
@@ -827,7 +840,7 @@ async function refreshClientsCache() {
 function pollCardHTML(poll) {
   const isConfirmed = !!poll.confirmedSlot;
   const date = new Date(poll.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const voteCount = poll.votes.length;
+  const voteCount = poll.voteCount;
   const typeMeta = {
     question:     { icon: 'list-checks',    color: 'text-purple-500', label: 'Question' },
     rsvp:         { icon: 'user-check',      color: 'text-teal-500',   label: 'RSVP' },
@@ -1776,7 +1789,7 @@ async function createPoll() {
       currentPollId = data.id;
       const pollUrl = `${location.origin}/?poll=${data.id}`;
       document.getElementById('share-link').value = pollUrl;
-      document.getElementById('qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(pollUrl)}`;
+      document.getElementById('qr-code').src = generateQrDataUrl(pollUrl);
       showView('created');
     }
   } catch (e) {
@@ -1832,6 +1845,7 @@ async function loadPoll(id, opts = {}) {
       return;
     }
     if (!res.ok) throw new Error('Server error');
+    lastPollETag = res.headers.get('ETag');
     currentPoll = await res.json();
     renderPoll();
     startPollRefresh();
@@ -1912,29 +1926,37 @@ function stopPollRefresh() {
   if (pollRefreshTimer) { clearInterval(pollRefreshTimer); pollRefreshTimer = null; }
 }
 
-// True if the voter has started filling out the vote form — a background refresh
-// must not stomp on an in-progress name entry or vote selection.
-function isVoteFormActive() {
+// True if the voter has started filling out the vote form, or the owner has
+// an inline editor (title, etc.) focused — a background refresh must not
+// stomp on an in-progress name entry, vote selection, or edit.
+function isEditActive() {
   const nameInput = document.getElementById('vote-name');
   if (nameInput && nameInput.value.trim()) return true;
   const nameSelect = document.getElementById('vote-name-select');
   if (nameSelect && nameSelect.value) return true;
   if (document.activeElement && document.activeElement.closest('#vote-card, #rsvp-vote-card, #avail-vote-card, #q-vote-card')) return true;
-  return Object.values(voteResponses).some(v => v !== null && v !== undefined);
+  if (Object.values(voteResponses).some(v => v !== null && v !== undefined)) return true;
+  const active = document.activeElement;
+  if (active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) && active.closest('#poll-container')) return true;
+  return false;
 }
 
 async function refreshPollTick() {
   if (document.hidden || !currentPollId || !pollRefreshTimer) return;
   let fresh;
   try {
-    const res = await fetch(`/api/polls/${currentPollId}`);
+    const res = await fetch(`/api/polls/${currentPollId}`, {
+      headers: lastPollETag ? { 'If-None-Match': lastPollETag } : {}
+    });
+    if (res.status === 304) return; // nothing changed — skip the re-render entirely
     if (!res.ok) return;
+    lastPollETag = res.headers.get('ETag');
     fresh = await res.json();
   } catch { return; }
 
-  const activeVoteForm = isVoteFormActive();
+  const editActive = isEditActive();
   currentPoll = fresh;
-  if (activeVoteForm) {
+  if (editActive) {
     refreshResultsOnly();
   } else {
     renderPoll();
@@ -2117,7 +2139,7 @@ async function submitRsvpVote() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, timezone: 'UTC', responses: { [sid]: choice } })
     });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to submit');
     setVoteRecord(currentPollId, name);
     showToast('Response saved!');
     voteResponses = {};
@@ -2316,7 +2338,7 @@ async function submitAvailabilityVote() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, timezone, responses })
     });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to submit');
     setVoteRecord(currentPollId, name);
     showToast(`Availability saved! Recorded in ${friendlyTzName(timezone)}.`);
     voteResponses = {};
@@ -2482,8 +2504,8 @@ function renderWhoHasntVoted(poll) {
   }
   const chip = v => {
     const nudgeBtn = (poll.isOwner && v.email)
-      ? `<button onclick="nudgeVoter('${esc(v.name)}')" title="Send a reminder email to ${esc(v.email)}"
-           aria-label="Nudge ${esc(v.name)}" class="text-amber-500 hover:text-amber-700 transition-colors">
+      ? `<button class="js-nudge-voter text-amber-500 hover:text-amber-700 transition-colors" data-voter-name="${esc(v.name)}" title="Send a reminder email to ${esc(v.email)}"
+           aria-label="Nudge ${esc(v.name)}">
            <i data-lucide="bell" class="w-3 h-3"></i>
          </button>`
       : '';
@@ -2522,8 +2544,7 @@ function renderManageResponses(poll) {
   const rows = poll.votes.map(v => `
     <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
       <span class="text-sm text-gray-700">${esc(v.name)}</span>
-      <button onclick="deleteVote('${esc(v.name)}')" title="Remove vote"
-        class="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-all">
+      <button class="js-delete-vote flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-all" data-voter-name="${esc(v.name)}" title="Remove vote">
         <i data-lucide="x" class="w-3.5 h-3.5"></i> Remove
       </button>
     </div>`).join('');
@@ -2585,7 +2606,7 @@ async function saveTitle() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: newTitle })
     });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed');
     currentPoll.title = newTitle;
     showToast('Title updated!');
     renderPoll();
@@ -2716,7 +2737,7 @@ async function submitQuestionVote() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, timezone: 'UTC', responses })
     });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to submit');
     setVoteRecord(currentPollId, name);
     showToast('Vote submitted!');
     voteResponses = {};
@@ -3024,7 +3045,7 @@ async function submitVote() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, timezone, responses })
     });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed to submit');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to submit');
     setVoteRecord(currentPollId, name);
     showToast(`Vote submitted! Recorded in ${friendlyTzName(timezone)}.`);
     voteResponses = {};
@@ -3345,7 +3366,7 @@ async function confirmSlot(slotId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slotId })
     });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed');
     showToast('Time confirmed!');
     await loadPoll(currentPollId, { summary: pollViewMode === 'summary' });
   } catch (e) { showToast('Error: ' + e.message); }
@@ -3381,7 +3402,7 @@ async function deletePoll(e, pollId) {
   if (!(await askConfirm('This permanently deletes the poll and all its responses. This cannot be undone.', { title: 'Delete poll?', okLabel: 'Delete' }))) return;
   try {
     const res = await fetch(`/api/polls/${pollId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed');
     showToast('Poll deleted.');
     loadDashboard();
   } catch (err) { showToast('Error: ' + err.message); }
@@ -3450,6 +3471,7 @@ async function clonePoll(e, pollId) {
   e.stopPropagation();
   try {
     const res  = await fetch(`/api/polls/${pollId}`);
+    if (!res.ok) throw new Error('Could not load poll to clone.');
     const poll = await res.json();
     editingPollId  = null;
     createPollType = poll.type;
@@ -3505,7 +3527,7 @@ async function deleteVote(name) {
   if (!(await askConfirm(`This removes ${name}'s response from the poll.`, { title: 'Remove response?', okLabel: 'Remove' }))) return;
   try {
     const res = await fetch(`/api/polls/${currentPollId}/votes/${encodeURIComponent(name)}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed');
     showToast('Vote removed.');
     await loadPoll(currentPollId, { summary: pollViewMode === 'summary' });
   } catch (err) { showToast('Error: ' + err.message); }
@@ -3568,6 +3590,16 @@ function changeVote(pollId) {
 // ────────────────────────────────────────────────────
 // UTILS
 // ────────────────────────────────────────────────────
+// Renders locally via the vendored qrcode-generator (public/vendor/qrcode.js)
+// so poll URLs — which double as the access token — never get sent to a
+// third-party QR rendering service.
+function generateQrDataUrl(text) {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  return qr.createDataURL(4, 8);
+}
+
 function esc(str) {
   return String(str)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
@@ -3655,6 +3687,19 @@ function showToast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
+
+// Delegated click handler for voter-name actions (nudge/remove). Voter names
+// are attacker-controlled (anyone can vote under any name), so they're never
+// interpolated into an onclick="..." JS-string — that let a name like
+// `');alert(1)//` execute as script when the owner viewed it. Reading the
+// name back out of a data-* attribute means the browser only ever treats it
+// as text, never as code, regardless of what characters it contains.
+document.addEventListener('click', (e) => {
+  const nudgeBtn = e.target.closest('.js-nudge-voter');
+  if (nudgeBtn) { nudgeVoter(nudgeBtn.dataset.voterName); return; }
+  const deleteBtn = e.target.closest('.js-delete-vote');
+  if (deleteBtn) { deleteVote(deleteBtn.dataset.voterName); return; }
+});
 
 // ────────────────────────────────────────────────────
 // BOOT

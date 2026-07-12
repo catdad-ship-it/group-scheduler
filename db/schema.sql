@@ -1,5 +1,11 @@
 -- Huddle schema: users, polls, slots, votes, magic-link tokens.
 -- Applied manually (local dev via psql, prod via `fly postgres connect`).
+--
+-- This whole file is written to be idempotent (CREATE TABLE IF NOT EXISTS,
+-- ADD COLUMN IF NOT EXISTS, guarded DO $$ blocks for anything that isn't
+-- naturally re-runnable) — re-running it against a DB that already has some
+-- or all of these changes applied is safe. There's no separate migrations
+-- runner; new schema changes get appended below and applied by hand.
 
 CREATE TABLE IF NOT EXISTS users (
   id          BIGSERIAL PRIMARY KEY,
