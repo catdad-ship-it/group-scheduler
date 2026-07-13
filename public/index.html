@@ -426,9 +426,11 @@
       </div>
       <div>
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Expected Voters <span class="font-normal normal-case text-gray-400">(optional)</span></label>
-        <input type="text" id="poll-expected-voters" placeholder="Alice <alice@client.com>, Bob, Carol" maxlength="2000"
-          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white transition-all placeholder-gray-400">
-        <p class="text-xs text-gray-500 mt-1">Comma-separated names. Add an email in &lt;angle brackets&gt; to enable one-click nudges and deadline reminders for that person.</p>
+        <div id="ev-chip-input" class="w-full border border-gray-200 rounded-xl px-2 py-1.5 bg-white flex flex-wrap gap-1.5 items-center transition-all focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 cursor-text">
+          <input type="text" id="ev-chip-text" maxlength="150" autocomplete="off" placeholder="Type a name, press Enter"
+            class="flex-1 min-w-[140px] border-0 outline-none bg-transparent text-sm text-gray-900 px-1.5 py-1 placeholder-gray-400">
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Press Enter after each name. Click a name to add an email or phone — that enables one-click nudges and deadline reminders.</p>
       </div>
       <div>
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Client <span class="font-normal normal-case text-gray-400">(optional)</span></label>
@@ -1310,23 +1312,235 @@ function friendlyTzName(tz) {
 }
 
 // ────────────────────────────────────────────────────
-// EXPECTED VOTERS — "Name <email>, Name2" text input <-> [{name, email?}]
+// EXPECTED VOTERS — chip/token input <-> [{name, email?, phone?}]
+//
+// Each person is a removable chip. Type a name and press Enter (or comma) to
+// add one; click a chip to attach an optional contact. A single "contact"
+// field auto-detects whether you typed an email or a phone number, so there's
+// no <angle-bracket> syntax to remember and the chip icon confirms it stuck.
+//
+// A voter may carry both an email and a phone (e.g. created via the API). The
+// chip edits one channel "slot" at a time and never drops the other, so a poll
+// loaded with both contacts round-trips without loss.
 // ────────────────────────────────────────────────────
-function parseExpectedVotersInput(str) {
-  if (!str || !str.trim()) return [];
-  return str.split(',').map(entry => entry.trim()).filter(Boolean).map(entry => {
-    const match = entry.match(/^(.*?)<([^<>]+)>\s*$/);
-    if (match) {
-      const name = match[1].trim();
-      const email = match[2].trim();
-      return email ? { name, email } : { name };
-    }
-    return { name: entry };
-  }).filter(v => v.name);
+
+// Client-side mirrors of the server's contact validation (server.js — EMAIL_RE
+// and normalizePhone). Kept in sync by hand since there's no shared bundle;
+// change both together or the chip will accept a contact the server rejects.
+const EV_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function evNormalizePhone(s) {
+  const digits = s.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) return null;
+  return (s.startsWith('+') ? '+' : '') + digits;
 }
 
-function serializeExpectedVoters(voters) {
-  return (voters || []).map(v => v.email ? `${v.name} <${v.email}>` : v.name).join(', ');
+let evVoters = [];          // [{name, email?, phone?}]
+let evEditingIndex = -1;    // index of the chip whose contact is being edited
+let evEditingChannel = null;// which slot ('email'|'phone'|null) the open editor replaces
+let evWired = false;
+
+// Decide whether a typed contact string is an email, a phone, both empty, or
+// invalid, using the same rules the server enforces.
+function evDetectContact(value) {
+  const s = (value || '').trim();
+  if (!s) return {};                       // cleared — no contact
+  if (s.includes('@')) {
+    if (EV_EMAIL_RE.test(s) && s.length <= 254) return { email: s.toLowerCase() };
+    return { error: 'That email doesn\'t look right.' };
+  }
+  const phone = evNormalizePhone(s);
+  if (phone) return { phone };
+  return { error: 'Enter a valid email or phone number.' };
+}
+
+function evAddNames(str) {
+  let added = false;
+  for (const part of str.split(',').map(s => s.trim()).filter(Boolean)) {
+    const name = part.slice(0, 100);
+    if (evVoters.some(v => v.name.toLowerCase() === name.toLowerCase())) continue; // dedupe by name
+    if (evVoters.length >= 50) { showToast('Max 50 expected voters.'); break; }  // only a real add hits the cap
+    evVoters.push({ name });
+    added = true;
+  }
+  if (added) evRender();
+}
+
+// Flush whatever's typed in the text box into chips (on Enter, comma, or blur).
+function evFlushText() {
+  const t = document.getElementById('ev-chip-text');
+  if (!t || !t.value.trim()) { if (t) t.value = ''; return; }
+  evAddNames(t.value);
+  t.value = '';
+}
+
+// Open the contact editor for chip i. The editor edits the chip's shown
+// "slot" (its email if it has one, else its phone); remember which so commit
+// replaces only that slot and leaves the voter's other channel untouched.
+function evStartEdit(i) {
+  if (!evVoters[i]) return;
+  evEditingIndex = i;
+  evEditingChannel = evVoters[i].email ? 'email' : (evVoters[i].phone ? 'phone' : null);
+  evRender();
+}
+
+// Commit an inline contact edit. viaBlur=true exits edit mode even on a bad
+// value (so focus is never trapped); Enter keeps you in the field to fix it.
+function evCommitEdit(input, viaBlur) {
+  const i = Number(input.dataset.i);
+  if (!Number.isInteger(i) || !evVoters[i]) { evEditingIndex = -1; evEditingChannel = null; return; }
+  const det = evDetectContact(input.value);
+  if (det.error) {
+    if (viaBlur) { evEditingIndex = -1; evEditingChannel = null; evRender(); }
+    else showToast(det.error);
+    return;
+  }
+  // Clear only the slot that was being edited (not the voter's other channel),
+  // then write the newly typed value. Empty input clears the edited slot.
+  if (evEditingChannel === 'email') delete evVoters[i].email;
+  else if (evEditingChannel === 'phone') delete evVoters[i].phone;
+  if (det.email) evVoters[i].email = det.email;
+  else if (det.phone) evVoters[i].phone = det.phone;
+  evEditingIndex = -1;
+  evEditingChannel = null;
+  evRender();
+  if (!viaBlur) document.getElementById('ev-chip-text')?.focus();
+}
+
+function evRemoveAt(i) {
+  if (!evVoters[i]) return;
+  evVoters.splice(i, 1);
+  if (evEditingIndex === i) { evEditingIndex = -1; evEditingChannel = null; }
+  evRender();
+}
+
+function evRender() {
+  const container = document.getElementById('ev-chip-input');
+  const textInput = document.getElementById('ev-chip-text');
+  if (!container || !textInput) return;
+  container.querySelectorAll('.ev-chip').forEach(n => n.remove());
+
+  const frag = document.createDocumentFragment();
+  evVoters.forEach((v, i) => {
+    const chip = document.createElement('span');
+    if (i === evEditingIndex) {
+      chip.className = 'ev-chip inline-flex items-center gap-1 bg-white border border-blue-300 rounded-full pl-2.5 pr-1.5 py-0.5';
+      chip.innerHTML =
+        `<span class="text-sm text-gray-700">${esc(v.name)}</span>` +
+        `<input type="text" class="ev-contact-input border-0 outline-none bg-transparent text-sm w-44 px-1 text-gray-900" data-i="${i}" placeholder="email or phone" value="${esc(v.email || v.phone || '')}">`;
+    } else {
+      // The chip's primary slot is its email if present, else its phone.
+      const icon      = v.email ? 'mail' : v.phone ? 'phone' : 'user';
+      const iconColor = v.email ? 'text-blue-500' : v.phone ? 'text-green-600' : 'text-gray-400';
+      const chipBg    = v.email ? 'bg-blue-50 text-blue-700' : v.phone ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-700';
+      const contact   = v.email || v.phone || '';
+      // A phone kept alongside an email is shown as a second glyph so it's never hidden.
+      const secondary = (v.email && v.phone)
+        ? `<i data-lucide="phone" class="w-3 h-3 text-green-600 shrink-0" title="${esc(v.phone)}"></i>`
+        : '';
+      chip.className = `ev-chip inline-flex items-center gap-1 ${chipBg} rounded-full pl-2.5 pr-1 py-1 text-sm`;
+      chip.innerHTML =
+        `<i data-lucide="${icon}" class="w-3.5 h-3.5 ${iconColor} shrink-0"></i>` +
+        `<button type="button" class="ev-edit-contact font-medium" data-i="${i}" title="Add or edit contact">${esc(v.name)}</button>` +
+        (contact
+          ? `<button type="button" class="ev-edit-contact opacity-70 text-xs" data-i="${i}" title="Edit contact">${esc(contact)}</button>`
+          : `<button type="button" class="ev-edit-contact opacity-50 hover:opacity-100 flex items-center" data-i="${i}" title="Add email or phone" aria-label="Add contact for ${esc(v.name)}"><i data-lucide="plus" class="w-3 h-3"></i></button>`) +
+        secondary +
+        `<button type="button" class="ev-remove hover:bg-black/5 rounded-full p-0.5 flex items-center" data-i="${i}" aria-label="Remove ${esc(v.name)}"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>`;
+    }
+    frag.appendChild(chip);
+  });
+  container.insertBefore(frag, textInput);
+  // Scope the icon pass to this container instead of rescanning the whole
+  // document on every keystroke-driven re-render.
+  if (window.lucide) lucide.createIcons({ nodes: container.querySelectorAll('[data-lucide]') });
+
+  if (evEditingIndex >= 0) {
+    const inp = container.querySelector('.ev-contact-input');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+}
+
+// Wire the container's events once. The chip nodes are recreated on every
+// render, so all handlers are delegated on the stable container element.
+function evInit() {
+  if (evWired) return;
+  const container = document.getElementById('ev-chip-input');
+  const textInput = document.getElementById('ev-chip-text');
+  if (!container || !textInput) return;
+  evWired = true;
+
+  // Suppress the focus shift a chip-button press would cause: otherwise the
+  // active field blurs, we re-render, and the button is destroyed before the
+  // click lands (dropping the click and, for the text box, flushing a phantom
+  // chip). We commit any open edit explicitly in the click handler instead.
+  container.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.ev-edit-contact') || e.target.closest('.ev-remove')) { e.preventDefault(); return; }
+    if (e.target === container) { e.preventDefault(); textInput.focus(); }
+  });
+  container.addEventListener('click', (e) => {
+    const edit = e.target.closest('.ev-edit-contact');
+    const rm   = e.target.closest('.ev-remove');
+    if (!edit && !rm) return;
+    const i = Number((edit || rm).dataset.i);
+    // Blur was suppressed above, so commit an open edit on a different chip here.
+    if (evEditingIndex >= 0 && evEditingIndex !== i) {
+      const ci = container.querySelector('.ev-contact-input');
+      if (ci) evCommitEdit(ci, true);
+    }
+    if (rm) { evRemoveAt(i); return; }
+    if (evEditingIndex !== i) evStartEdit(i);
+  });
+  textInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); evFlushText(); }
+    else if (e.key === 'Backspace' && textInput.value === '' && evEditingIndex < 0 && evVoters.length) {
+      evRemoveAt(evVoters.length - 1);
+    }
+  });
+  textInput.addEventListener('blur', evFlushText);
+  textInput.addEventListener('paste', () => setTimeout(() => { if (textInput.value.includes(',')) evFlushText(); }, 0));
+
+  container.addEventListener('keydown', (e) => {
+    const ci = e.target.closest('.ev-contact-input');
+    if (!ci) return;
+    if (e.key === 'Enter') { e.preventDefault(); evCommitEdit(ci, false); }
+    else if (e.key === 'Escape') { e.preventDefault(); evEditingIndex = -1; evEditingChannel = null; evRender(); textInput.focus(); }
+  });
+  container.addEventListener('blur', (e) => {
+    const ci = e.target.closest && e.target.closest('.ev-contact-input');
+    if (ci) evCommitEdit(ci, true);
+  }, true);
+}
+
+// Read the current chips as [{name, email?, phone?}] for submit — flushing any
+// pending typed name and committing any open contact edit first.
+function evGetVoters() {
+  evFlushText();
+  if (evEditingIndex >= 0) {
+    const ci = document.querySelector('.ev-contact-input');
+    if (ci) evCommitEdit(ci, true);
+  }
+  return evVoters.map(v => {
+    const o = { name: v.name };
+    if (v.email) o.email = v.email;
+    if (v.phone) o.phone = v.phone;
+    return o;
+  });
+}
+
+// Load chips from a poll's expectedVoters (edit/clone) or clear them ([]).
+function evSetVoters(arr) {
+  evInit();
+  evVoters = (arr || []).map(v => {
+    const o = { name: (v.name || '').slice(0, 100) };
+    if (v.email) o.email = v.email;
+    if (v.phone) o.phone = v.phone;
+    return o;
+  });
+  evEditingIndex = -1;
+  evEditingChannel = null;
+  const t = document.getElementById('ev-chip-text');
+  if (t) t.value = '';
+  evRender();
 }
 
 function formatSlot(utcMs, tz) {
@@ -1431,7 +1645,7 @@ function initCreateForm(clientId = '') {
   document.getElementById('poll-title').value   = '';
   document.getElementById('poll-description').value = '';
   document.getElementById('poll-deadline').value = '';
-  document.getElementById('poll-expected-voters').value = '';
+  evSetVoters([]);
   document.getElementById('create-error').textContent = '';
   document.getElementById('new-client-row').classList.add('hidden');
   loadClientsInto(clientId);
@@ -1740,8 +1954,7 @@ async function createPoll() {
   const deadlineInput = document.getElementById('poll-deadline').value;
   const deadline = deadlineInput ? new Date(deadlineInput).getTime() : null;
 
-  const evInput = document.getElementById('poll-expected-voters')?.value || '';
-  const expectedVoters = parseExpectedVotersInput(evInput);
+  const expectedVoters = evGetVoters();
 
   const isEditing = !!editingPollId;
 
@@ -2503,13 +2716,25 @@ function renderWhoHasntVoted(poll) {
       </div>`;
   }
   const chip = v => {
-    const nudgeBtn = (poll.isOwner && v.email)
-      ? `<button class="js-nudge-voter text-amber-500 hover:text-amber-700 transition-colors" data-voter-name="${esc(v.name)}" title="Send a reminder email to ${esc(v.email)}"
-           aria-label="Nudge ${esc(v.name)}">
-           <i data-lucide="bell" class="w-3 h-3"></i>
-         </button>`
-      : '';
-    return `<span class="flex items-center gap-1 text-xs bg-white border border-amber-200 text-amber-700 pl-2.5 ${nudgeBtn ? 'pr-1.5' : 'pr-2.5'} py-1 rounded-full">${esc(v.name)}${nudgeBtn}</span>`;
+    // Offer whichever channels the voter has, independently — a voter with both
+    // an email and a phone gets both a reminder-email and a text button.
+    let btn = '';
+    if (poll.isOwner && v.email) {
+      // Email on file → server-side reminder email.
+      btn += `<button class="js-nudge-voter text-amber-500 hover:text-amber-700 transition-colors" data-voter-name="${esc(v.name)}" title="Send a reminder email to ${esc(v.email)}"
+               aria-label="Nudge ${esc(v.name)} by email">
+               <i data-lucide="bell" class="w-3 h-3"></i>
+             </button>`;
+    }
+    if (poll.isOwner && v.phone) {
+      // Phone → open the owner's own messaging app with a pre-filled text
+      // (no SMS provider wired up server-side yet).
+      btn += `<button class="js-sms-voter text-amber-500 hover:text-amber-700 transition-colors" data-voter-name="${esc(v.name)}" data-voter-phone="${esc(v.phone)}" title="Text a reminder to ${esc(v.phone)}"
+               aria-label="Text ${esc(v.name)}">
+               <i data-lucide="message-circle" class="w-3 h-3"></i>
+             </button>`;
+    }
+    return `<span class="flex items-center gap-1 text-xs bg-white border border-amber-200 text-amber-700 pl-2.5 ${btn ? 'pr-1.5' : 'pr-2.5'} py-1 rounded-full">${esc(v.name)}${btn}</span>`;
   };
   return `
     <div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5 mt-4">
@@ -2534,6 +2759,31 @@ async function nudgeVoter(name) {
     if (!res.ok) throw new Error(data.error || 'Could not send nudge.');
     showToast(`Nudge sent to ${name}.`);
   } catch (err) { showToast('Error: ' + err.message); }
+}
+
+// Phone-only voters have no server-side send path yet, so open the owner's own
+// SMS app with a pre-filled reminder. The `?&body=` form is the separator that
+// works across both iOS and Android sms: handlers.
+function smsVoter(name, phone) {
+  const title = currentPoll?.title || 'the scheduling poll';
+  const url = `${location.origin}/?poll=${currentPollId}`;
+  const body = `Hi ${name}, just a nudge — you haven't responded to "${title}" yet. Respond here: ${url}`;
+  // Mobile has a real sms: handler; hand off to Messages.
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    window.location.href = `sms:${phone}?&body=${encodeURIComponent(body)}`;
+    return;
+  }
+  // Desktop browsers usually have no sms: handler, so the link would silently
+  // do nothing. Copy the number + message to the clipboard and confirm instead.
+  const text = `${phone} — ${body}`;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(
+      () => showToast(`Reminder for ${name} copied — text it to ${phone}.`),
+      () => showToast(`Text ${name} at ${phone}.`)
+    );
+  } else {
+    showToast(`Text ${name} at ${phone}.`);
+  }
 }
 
 // ────────────────────────────────────────────────────
@@ -3481,7 +3731,7 @@ async function clonePoll(e, pollId) {
     document.getElementById('poll-title').value       = poll.title + ' (copy)';
     document.getElementById('poll-description').value = poll.description || '';
     // Carry the expected-voter list forward too (no responses — those aren't cloned).
-    document.getElementById('poll-expected-voters').value = serializeExpectedVoters(poll.expectedVoters);
+    evSetVoters(poll.expectedVoters);
 
     populateSlotBuilderFrom(poll);
 
@@ -3500,7 +3750,7 @@ function startEditPoll(poll) {
   if (poll.deadline) {
     document.getElementById('poll-deadline').value = localDatetimeValue(new Date(poll.deadline));
   }
-  document.getElementById('poll-expected-voters').value = serializeExpectedVoters(poll.expectedVoters);
+  evSetVoters(poll.expectedVoters);
 
   populateSlotBuilderFrom(poll);
 
@@ -3697,6 +3947,8 @@ function showToast(msg) {
 document.addEventListener('click', (e) => {
   const nudgeBtn = e.target.closest('.js-nudge-voter');
   if (nudgeBtn) { nudgeVoter(nudgeBtn.dataset.voterName); return; }
+  const smsBtn = e.target.closest('.js-sms-voter');
+  if (smsBtn) { smsVoter(smsBtn.dataset.voterName, smsBtn.dataset.voterPhone); return; }
   const deleteBtn = e.target.closest('.js-delete-vote');
   if (deleteBtn) { deleteVote(deleteBtn.dataset.voterName); return; }
 });

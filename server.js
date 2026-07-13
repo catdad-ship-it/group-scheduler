@@ -211,13 +211,27 @@ function validateDeadline(deadline, isCreate) {
   return { value: ms };
 }
 
+// Normalize a phone number to a compact "+digits" (or "digits") form for
+// storage and for building `sms:` links on the client. Returns null if it
+// doesn't look like a real phone number. Deliberately lenient about the
+// entered format (spaces, dashes, parens) — we only keep a leading + and
+// the digits, and require a plausible length.
+function normalizePhone(raw) {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  const hasPlus = trimmed.startsWith('+');
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) return null;
+  return (hasPlus ? '+' : '') + digits;
+}
+
 function validateExpectedVoters(expectedVoters) {
   if (expectedVoters === undefined) return { value: [] };
   if (!Array.isArray(expectedVoters)) return { error: 'expectedVoters must be an array.' };
   if (expectedVoters.length > 50) return { error: 'Too many expected voters (max 50).' };
   const value = [];
   for (const entry of expectedVoters) {
-    // Accept a bare name string (legacy shape) or a {name, email?} object.
+    // Accept a bare name string (legacy shape) or a {name, email?, phone?} object.
     const raw = typeof entry === 'string' ? { name: entry } : (entry && typeof entry === 'object' ? entry : null);
     if (!raw || typeof raw.name !== 'string' || !raw.name.trim()) continue;
     const voter = { name: raw.name.trim().slice(0, 100) };
@@ -226,6 +240,11 @@ function validateExpectedVoters(expectedVoters) {
         return { error: `Invalid email for ${voter.name}.` };
       }
       voter.email = raw.email.trim().toLowerCase();
+    }
+    if (raw.phone !== undefined && raw.phone !== null && raw.phone !== '') {
+      const phone = normalizePhone(raw.phone);
+      if (!phone) return { error: `Invalid phone number for ${voter.name}.` };
+      voter.phone = phone;
     }
     value.push(voter);
   }
