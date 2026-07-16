@@ -1,0 +1,10 @@
+# huddlr.co — allow the marketing homepage, keep the app/API out of the index.
+User-agent: *
+Allow: /$
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /clients/
+Disallow: /branding
+Disallow: /*?poll=
+
+Sitemap: https://huddlr.co/sitemap.xml

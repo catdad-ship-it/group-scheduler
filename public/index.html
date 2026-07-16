@@ -3,7 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Huddle</title>
+
+  <!-- ── SEO / discoverability ──────────────────────────────────────────
+       This is a client-rendered SPA: every route (/, /dashboard, /?poll=…,
+       /clients/…, /branding) serves this same HTML. The canonical below
+       deliberately points all of them at the homepage so private/thin app
+       routes consolidate to / rather than getting indexed as duplicates.
+       robots.txt (public/robots.txt) additionally keeps the app areas out
+       of the crawl; the marketing content in #view-home is the only thing
+       we want ranked. -->
+  <title>Huddlr — Group scheduling &amp; availability polls, made simple</title>
+  <meta name="description" content="Huddlr is the fast, free way for a group to pick a time. Find a meeting time, collect everyone's availability, run a ranked-choice vote, or take a quick RSVP — create a poll, share the link, and let your group decide. No account needed to vote.">
+  <link rel="canonical" href="https://huddlr.co/">
+
+  <!-- Open Graph (link previews on Slack, iMessage, LinkedIn, Facebook…) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Huddlr">
+  <meta property="og:title" content="Huddlr — Group scheduling & availability polls, made simple">
+  <meta property="og:description" content="Find a time, collect availability, run a ranked-choice vote, or take a quick RSVP. Create a poll, share the link, let your group decide.">
+  <meta property="og:url" content="https://huddlr.co/">
+  <meta property="og:image" content="https://huddlr.co/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <!-- Twitter / X card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Huddlr — Group scheduling & availability polls, made simple">
+  <meta name="twitter:description" content="Find a time, collect availability, run a ranked-choice vote, or take a quick RSVP. Create a poll, share the link, let your group decide.">
+  <meta name="twitter:image" content="https://huddlr.co/og-image.png">
+
+  <!-- Structured data — helps Google understand what Huddlr is -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Huddlr",
+    "url": "https://huddlr.co/",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "description": "Group scheduling and availability polls. Find a time, collect availability, run a ranked-choice vote, or take a quick RSVP.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -165,7 +207,7 @@
         <rect x="3" y="10" width="13" height="4" rx="2" fill-opacity="0.55"/>
         <rect x="3" y="15" width="9" height="4" rx="2" fill-opacity="0.55"/>
       </svg>
-      Huddle
+      Huddlr
     </button>
     <div class="flex items-center gap-2">
       <button onclick="goHome()" aria-label="Home"
@@ -244,7 +286,7 @@
           </svg>
         </div>
         <h1 class="text-5xl sm:text-6xl font-bold tracking-tight text-gray-900 leading-none">
-          Huddle
+          Huddlr
         </h1>
       </div>
       <p class="text-gray-900 text-lg font-semibold mb-1">
@@ -2017,7 +2059,7 @@ async function createPoll() {
 async function copyLink() {
   const val = document.getElementById('share-link').value;
   if (navigator.share) {
-    try { await navigator.share({ title: "Huddle", url: val }); return; } catch {}
+    try { await navigator.share({ title: "Huddlr", url: val }); return; } catch {}
   }
   navigator.clipboard?.writeText(val).then(() => showToast('Link copied!')).catch(() => {
     const inp = document.getElementById('share-link');
@@ -2815,7 +2857,7 @@ function renderManageResponses(poll) {
 function sharePoll() {
   const url = `${location.origin}/?poll=${currentPollId}`;
   if (navigator.share) {
-    navigator.share({ title: currentPoll?.title || "Huddle", url }).catch(() => {});
+    navigator.share({ title: currentPoll?.title || "Huddlr", url }).catch(() => {});
   } else {
     navigator.clipboard?.writeText(url)
       .then(() => showToast('Link copied!'))
@@ -3577,12 +3619,12 @@ function downloadICS(poll) {
   if (!range) return;
   const { slot, start, end } = range;
   const ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', "PRODID:-//Huddle//EN",
+    'BEGIN:VCALENDAR', 'VERSION:2.0', "PRODID:-//Huddlr//EN",
     'BEGIN:VEVENT',
     `DTSTAMP:${icsTimestamp(new Date())}`,
     `DTSTART:${icsTimestamp(start)}`, `DTEND:${icsTimestamp(end)}`,
     `SUMMARY:${icsEscape(poll.title)}`,
-    `DESCRIPTION:${icsEscape('Scheduled via Huddle')}`,
+    `DESCRIPTION:${icsEscape('Scheduled via Huddlr')}`,
     `UID:${poll.id}-${slot.id}@bradyslittlehelper`,
     'END:VEVENT', 'END:VCALENDAR'
   ].join('\r\n');
@@ -3600,7 +3642,7 @@ function googleCalendarUrl(poll) {
     action: 'TEMPLATE',
     text: poll.title,
     dates: `${icsTimestamp(start)}/${icsTimestamp(end)}`,
-    details: 'Scheduled via Huddle'
+    details: 'Scheduled via Huddlr'
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
