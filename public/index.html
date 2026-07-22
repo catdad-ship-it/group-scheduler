@@ -14,7 +14,7 @@
        of the crawl; the marketing content in #view-home is the only thing
        we want ranked. -->
   <title>Huddlr — Group scheduling &amp; availability polls, made simple</title>
-  <meta name="description" content="Huddlr is the fast, free way for a group to pick a time. Find a meeting time, collect everyone's availability, run a ranked-choice vote, or take a quick RSVP — create a poll, share the link, and let your group decide. No account needed to vote.">
+  <meta name="description" content="Free group scheduling & availability polls. Find a meeting time, run a ranked-choice vote, or take a quick RSVP — share a link, no account needed to vote.">
   <link rel="canonical" href="https://huddlr.co/">
 
   <!-- Open Graph (link previews on Slack, iMessage, LinkedIn, Facebook…) -->
@@ -44,6 +44,42 @@
     "operatingSystem": "Web",
     "description": "Group scheduling and availability polls. Find a time, collect availability, run a ranked-choice vote, or take a quick RSVP.",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+
+  <!-- FAQ structured data — MUST stay in sync with the visible FAQ
+       in #view-home (Google requires the answers to match the page). -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Is Huddlr free?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Creating polls and collecting responses is free, and there's no account or credit card required to get started." }
+      },
+      {
+        "@type": "Question",
+        "name": "Do people need an account to vote?",
+        "acceptedAnswer": { "@type": "Answer", "text": "No. Anyone with the link can respond — voters never have to sign up or log in." }
+      },
+      {
+        "@type": "Question",
+        "name": "How is Huddlr different from a group text?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Instead of scrolling a chat to count replies, Huddlr tallies everyone's answers automatically and shows the winning time or option at a glance." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I use Huddlr to schedule a meeting?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Use \"Find a Time\" to vote on a set of proposed slots, or the availability grid to see when everyone is free and pick the best overlap." }
+      },
+      {
+        "@type": "Question",
+        "name": "What kinds of decisions does Huddlr handle?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Finding a meeting time, collecting availability, ranked-choice voting on any options, and quick RSVPs or headcounts." }
+      }
+    ]
   }
   </script>
 
@@ -286,15 +322,15 @@
             <rect x="3" y="15" width="9" height="4" rx="2" fill-opacity="0.6"/>
           </svg>
         </div>
-        <h1 class="text-5xl sm:text-6xl font-bold tracking-tight text-gray-900 leading-none">
+        <span class="text-5xl sm:text-6xl font-bold tracking-tight text-gray-900 leading-none">
           Huddlr
-        </h1>
+        </span>
       </div>
-      <p class="text-gray-900 text-lg font-semibold mb-1">
-        Group decisions, made easy.
-      </p>
+      <h1 class="text-gray-900 text-lg font-semibold mb-1">
+        Group scheduling &amp; availability polls
+      </h1>
       <p class="text-gray-500 text-base leading-relaxed max-w-xs mx-auto">
-        Create a poll, share the link, and let everyone weigh in.
+        Group decisions, made easy — create a poll, share the link, and let everyone weigh in.
       </p>
     </div>
 
@@ -364,6 +400,88 @@
         </div>
       </div>
     </div>
+
+    <!-- ── Marketing copy (SEO) ───────────────────────────────
+         Crawlable prose so the homepage has real content to rank
+         for. Lives inside #view-home, so it's hidden on app routes
+         (same as the hero/cards above). Keep the visible FAQ below
+         in sync with the FAQPage JSON-LD in <head>. -->
+    <section class="mt-20">
+      <h2 class="text-xl font-bold text-gray-900 mb-2 text-center">Four ways to decide as a group</h2>
+      <p class="text-sm text-gray-500 leading-relaxed text-center mb-8 max-w-md mx-auto">
+        Huddlr handles the four things groups get stuck on most. Pick a poll type, add your options, and share one link — no account needed to vote.
+      </p>
+      <div class="space-y-6">
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-1">Find a meeting time</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">
+            Propose a few date-and-time options and let everyone mark which ones work. Huddlr tallies the votes so the best meeting time for the whole group is obvious at a glance — a fast, free way to schedule a call, dinner, or team meeting without a long email thread.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-1">Collect everyone's availability</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">
+            When there's no obvious set of times, use the availability grid. Everyone paints the hours they're free and Huddlr highlights the overlap, so you can find a slot that suits the most people — a simple alternative to juggling calendars by hand.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-1">Run a ranked-choice vote</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">
+            Deciding on a restaurant, a name, or a plan? Ask a question, list the options, and let the group rank them. Ranked-choice voting surfaces the option most people can live with — not just the one with a noisy plurality.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-1">Take a quick RSVP</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">
+            Just need a headcount? Post one question and watch a live count of who's in, who's out, and who's a maybe. Perfect for events, game nights, and "are we still on?" moments.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-16">
+      <h2 class="text-xl font-bold text-gray-900 mb-6 text-center">Why groups use Huddlr</h2>
+      <ul class="space-y-3">
+        <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+          <i data-lucide="zap" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
+          <span><span class="font-semibold text-gray-900">Free and instant.</span> Create a poll in seconds — no sign-up, no credit card, no app to install.</span>
+        </li>
+        <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+          <i data-lucide="users" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
+          <span><span class="font-semibold text-gray-900">No account needed to vote.</span> Share one link and anyone can respond — voters never have to register.</span>
+        </li>
+        <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+          <i data-lucide="smartphone" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
+          <span><span class="font-semibold text-gray-900">Works everywhere.</span> Share by link or QR code; the poll works on any phone, tablet, or laptop.</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="mt-16">
+      <h2 class="text-xl font-bold text-gray-900 mb-6 text-center">Frequently asked questions</h2>
+      <div class="space-y-4">
+        <div>
+          <h3 class="font-semibold text-gray-900 text-sm mb-1">Is Huddlr free?</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Yes. Creating polls and collecting responses is free, and there's no account or credit card required to get started.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900 text-sm mb-1">Do people need an account to vote?</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">No. Anyone with the link can respond — voters never have to sign up or log in.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900 text-sm mb-1">How is Huddlr different from a group text?</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Instead of scrolling a chat to count replies, Huddlr tallies everyone's answers automatically and shows the winning time or option at a glance.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900 text-sm mb-1">Can I use Huddlr to schedule a meeting?</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Yes. Use "Find a Time" to vote on a set of proposed slots, or the availability grid to see when everyone is free and pick the best overlap.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900 text-sm mb-1">What kinds of decisions does Huddlr handle?</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Finding a meeting time, collecting availability, ranked-choice voting on any options, and quick RSVPs or headcounts.</p>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 
