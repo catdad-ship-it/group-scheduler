@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- ── SEO ──────────────────────────────────────────────────────────
+       Standalone crawlable positioning page served from
+       public/free-group-poll/index.html. Self-referencing canonical on the
+       trailing-slash URL (the one express.static serves 200). -->
+  <title>Free Group Poll Maker — Scheduling, Voting &amp; RSVPs in One | Huddlr</title>
+  <meta name="description" content="Huddlr is a free group poll maker: find a meeting time, collect availability, run a ranked-choice vote, or take an RSVP — all in one link, no account needed to vote.">
+  <link rel="canonical" href="https://huddlr.co/free-group-poll/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Huddlr">
+  <meta property="og:title" content="Free Group Poll Maker — Scheduling, Voting & RSVPs in One">
+  <meta property="og:description" content="Most poll tools do one thing. Huddlr does four — meeting times, availability grids, ranked-choice votes, and RSVPs — free, in one link, no account needed to vote.">
+  <meta property="og:url" content="https://huddlr.co/free-group-poll/">
+  <meta property="og:image" content="https://huddlr.co/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Free Group Poll Maker — Scheduling, Voting & RSVPs in One">
+  <meta name="twitter:description" content="Most poll tools do one thing. Huddlr does four — meeting times, availability grids, ranked-choice votes, and RSVPs — free, in one link.">
+  <meta name="twitter:image" content="https://huddlr.co/og-image.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://huddlr.co/" },
+      { "@type": "ListItem", "position": 2, "name": "Free Group Poll", "item": "https://huddlr.co/free-group-poll/" }
+    ]
+  }
+  </script>
+
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#2563eb">
+
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { borderRadius: { '2xl': '1rem', '3xl': '1.25rem' } } }
+    }
+  </script>
+</head>
+<body class="bg-white text-gray-900 min-h-screen antialiased overflow-x-hidden" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5;">
+
+<nav class="sticky top-0 z-50 bg-white border-b border-gray-100">
+  <div class="max-w-2xl mx-auto px-5 h-14 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-2 font-bold text-blue-600 hover:text-blue-700 transition-colors text-sm">
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="4" rx="2"/>
+        <rect x="3" y="10" width="13" height="4" rx="2" fill-opacity="0.55"/>
+        <rect x="3" y="15" width="9" height="4" rx="2" fill-opacity="0.55"/>
+      </svg>
+      Huddlr
+    </a>
+    <a href="/" class="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg transition-all">
+      Open Huddlr
+    </a>
+  </div>
+</nav>
+
+<main class="max-w-2xl mx-auto px-5 pt-14 pb-24">
+
+  <!-- Hero -->
+  <div class="text-center mb-14">
+    <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl shadow-sm mb-5" style="background:#2563eb">
+      <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+    </div>
+    <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 mb-4">
+      One free tool for every group decision
+    </h1>
+    <p class="text-gray-500 text-base leading-relaxed max-w-lg mx-auto mb-8">
+      Most poll tools do just one thing — pick a time here, collect availability there, vote somewhere else. Huddlr puts all four in a single free app: find a meeting time, see when everyone's free, run a ranked-choice vote, or take a quick RSVP. One link, no account needed to vote.
+    </p>
+    <a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all">
+      Create a free poll
+      <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+    <p class="text-xs text-gray-400 mt-3">No account needed to vote · Works on any device</p>
+  </div>
+
+  <!-- Comparison: Huddlr vs. other tools -->
+  <section class="mb-16">
+    <h2 class="text-xl font-bold text-gray-900 mb-6 text-center">Huddlr vs. single-purpose poll tools</h2>
+    <div class="overflow-x-auto -mx-5 px-5">
+      <table class="w-full min-w-[420px] text-sm border-collapse">
+        <thead>
+          <tr class="border-b border-gray-200">
+            <th class="text-left font-medium text-gray-400 py-3 pr-3 align-bottom"></th>
+            <th class="text-center font-bold text-blue-600 py-3 px-3 align-bottom">Huddlr</th>
+            <th class="text-center font-semibold text-gray-700 py-3 px-3 align-bottom">Most other tools</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-600">
+          <tr class="border-b border-gray-100 bg-blue-50/40">
+            <th class="text-left font-medium text-gray-700 py-3 pr-3">Find a meeting time</th>
+            <td class="text-center py-3 px-3 font-semibold text-green-600">Yes</td>
+            <td class="text-center py-3 px-3 text-gray-500">Often</td>
+          </tr>
+          <tr class="border-b border-gray-100">
+            <th class="text-left font-medium text-gray-700 py-3 pr-3">Availability grid</th>
+            <td class="text-center py-3 px-3 font-semibold text-green-600">Yes</td>
+            <td class="text-center py-3 px-3 text-gray-500">Sometimes</td>
+          </tr>
+          <tr class="border-b border-gray-100 bg-blue-50/40">
+            <th class="text-left font-medium text-gray-700 py-3 pr-3">Ranked-choice voting</th>
+            <td class="text-center py-3 px-3 font-semibold text-green-600">Yes</td>
+            <td class="text-center py-3 px-3 text-gray-500">Rarely</td>
+          </tr>
+          <tr class="border-b border-gray-100">
+            <th class="text-left font-medium text-gray-700 py-3 pr-3">Quick RSVP / headcount</th>
+            <td class="text-center py-3 px-3 font-semibold text-green-600">Yes</td>
+            <td class="text-center py-3 px-3 text-gray-500">Rarely</td>
+          </tr>
+          <tr class="border-b border-gray-100 bg-blue-50/40">
+            <th class="text-left font-medium text-gray-700 py-3 pr-3">All of them in one app</th>
+            <td class="text-center py-3 px-3 font-semibold text-green-600">Yes</td>
+            <td class="text-center py-3 px-3 text-gray-300">—</td>
+          </tr>
+          <tr class="border-b border-gray-100">
+            <th class="text-left font-medium text-gray-700 py-3 pr-3">Built for mobile</th>
+            <td class="text-center py-3 px-3 font-semibold text-green-600">Yes</td>
+            <td class="text-center py-3 px-3 text-gray-500">Varies</td>
+          </tr>
+          <tr>
+            <th class="text-left font-medium text-gray-700 py-3 pr-3">Free, no account to vote</th>
+            <td class="text-center py-3 px-3 font-semibold text-green-600">Yes</td>
+            <td class="text-center py-3 px-3 text-gray-500">Varies</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Four poll types (internal links) -->
+  <section class="mb-16">
+    <h2 class="text-xl font-bold text-gray-900 mb-6 text-center">Four poll types, one link</h2>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <a href="/meeting-scheduler/" class="block border border-gray-100 hover:border-blue-300 hover:bg-blue-50/50 rounded-2xl p-5 transition-all">
+        <div class="font-semibold text-gray-900 mb-1 text-sm">Find a meeting time</div>
+        <div class="text-xs text-gray-500 leading-relaxed">Propose slots and let the group vote on the best one.</div>
+      </a>
+      <a href="/availability-poll/" class="block border border-gray-100 hover:border-blue-300 hover:bg-blue-50/50 rounded-2xl p-5 transition-all">
+        <div class="font-semibold text-gray-900 mb-1 text-sm">Collect availability</div>
+        <div class="text-xs text-gray-500 leading-relaxed">Everyone paints when they're free; see the overlap.</div>
+      </a>
+      <a href="/ranked-choice-vote/" class="block border border-gray-100 hover:border-blue-300 hover:bg-blue-50/50 rounded-2xl p-5 transition-all">
+        <div class="font-semibold text-gray-900 mb-1 text-sm">Run a ranked-choice vote</div>
+        <div class="text-xs text-gray-500 leading-relaxed">Rank the options and find the consensus pick.</div>
+      </a>
+      <a href="/rsvp/" class="block border border-gray-100 hover:border-blue-300 hover:bg-blue-50/50 rounded-2xl p-5 transition-all">
+        <div class="font-semibold text-gray-900 mb-1 text-sm">Take a quick RSVP</div>
+        <div class="text-xs text-gray-500 leading-relaxed">Post one question and watch a live headcount.</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- Why -->
+  <section class="mb-16">
+    <h2 class="text-xl font-bold text-gray-900 mb-6 text-center">Why one app beats juggling several</h2>
+    <ul class="space-y-4 max-w-lg mx-auto">
+      <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+        <svg viewBox="0 0 24 24" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><span class="font-semibold text-gray-900">One place to learn.</span> Your group gets used to a single link and flow instead of a different site for every kind of decision.</span>
+      </li>
+      <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+        <svg viewBox="0 0 24 24" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><span class="font-semibold text-gray-900">Made for phones.</span> Every poll type — including the availability grid — is built to work with a thumb, not just a mouse.</span>
+      </li>
+      <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+        <svg viewBox="0 0 24 24" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><span class="font-semibold text-gray-900">Timezone-aware.</span> Times show in each person's local zone, so remote and international groups don't have to convert anything.</span>
+      </li>
+      <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+        <svg viewBox="0 0 24 24" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><span class="font-semibold text-gray-900">Free, and open to everyone.</span> Share one link and anyone can respond — no cost and no account required to vote.</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- FAQ -->
+  <section class="mb-16">
+    <h2 class="text-xl font-bold text-gray-900 mb-6 text-center">Frequently asked questions</h2>
+    <div class="space-y-5 max-w-lg mx-auto">
+      <div>
+        <h3 class="font-semibold text-gray-900 text-sm mb-1">Is Huddlr really free?</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Yes. Creating polls and collecting responses is free, with no paid tier required to run a normal group poll.</p>
+      </div>
+      <div>
+        <h3 class="font-semibold text-gray-900 text-sm mb-1">What kinds of polls can I run?</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Four: a meeting-time vote, an availability grid, a ranked-choice vote on any options, and a quick RSVP or headcount — all from the same app.</p>
+      </div>
+      <div>
+        <h3 class="font-semibold text-gray-900 text-sm mb-1">Do people need an account?</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Voters never need an account — anyone with the link can respond. To create and manage polls you sign in with just your email (a magic link, no password and no credit card).</p>
+      </div>
+      <div>
+        <h3 class="font-semibold text-gray-900 text-sm mb-1">Does it work on my phone?</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Yes. Every poll type is designed to work on any phone, tablet, or laptop straight from the browser — nothing to install.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <div class="text-center bg-gray-50 border border-gray-100 rounded-2xl p-8">
+    <h2 class="text-lg font-bold text-gray-900 mb-2">Make your next group decision easy</h2>
+    <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">Pick a poll type, add your options, and share one link.</p>
+    <a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all">
+      Create a free poll
+      <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+</main>
+
+<footer class="border-t border-gray-100">
+  <div class="max-w-2xl mx-auto px-5 py-10">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">Explore Huddlr</p>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8 text-sm">
+      <a href="/meeting-scheduler/" class="text-gray-500 hover:text-blue-600 transition-colors">Meeting scheduler</a>
+      <a href="/availability-poll/" class="text-gray-500 hover:text-blue-600 transition-colors">Availability poll</a>
+      <a href="/ranked-choice-vote/" class="text-gray-500 hover:text-blue-600 transition-colors">Ranked-choice vote</a>
+      <a href="/rsvp/" class="text-gray-500 hover:text-blue-600 transition-colors">RSVP &amp; headcount</a>
+    </div>
+    <div class="flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2 font-bold text-blue-600 text-sm">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="4" rx="2"/><rect x="3" y="10" width="13" height="4" rx="2" fill-opacity="0.55"/><rect x="3" y="15" width="9" height="4" rx="2" fill-opacity="0.55"/>
+        </svg>
+        Huddlr
+      </a>
+      <span class="text-xs text-gray-400">Free group scheduling &amp; polls</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
