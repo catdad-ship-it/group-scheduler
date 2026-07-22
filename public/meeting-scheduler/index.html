@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- ── SEO ──────────────────────────────────────────────────────────
+       Standalone, crawlable marketing page served directly from
+       public/meeting-scheduler/index.html (express.static runs before the
+       SPA catch-all in server.js, so this real file wins at
+       /meeting-scheduler). Self-referencing canonical — this page is meant
+       to be indexed on its own, unlike the SPA routes that collapse to /. -->
+  <title>Group Meeting Scheduler — Find a Time Everyone Can Make | Huddlr</title>
+  <meta name="description" content="Free group meeting scheduler. Propose a few time slots, share one link, and everyone votes — Huddlr tallies the best meeting time. No account needed to vote.">
+  <link rel="canonical" href="https://huddlr.co/meeting-scheduler/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Huddlr">
+  <meta property="og:title" content="Group Meeting Scheduler — Find a Time Everyone Can Make">
+  <meta property="og:description" content="Propose a few time slots, share one link, and let your group vote. Huddlr finds the meeting time that works for the most people — free, no sign-up to vote.">
+  <meta property="og:url" content="https://huddlr.co/meeting-scheduler/">
+  <meta property="og:image" content="https://huddlr.co/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Group Meeting Scheduler — Find a Time Everyone Can Make">
+  <meta name="twitter:description" content="Propose a few time slots, share one link, and let your group vote. Huddlr finds the meeting time that works for the most people.">
+  <meta name="twitter:image" content="https://huddlr.co/og-image.png">
+
+  <!-- Breadcrumb structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://huddlr.co/" },
+      { "@type": "ListItem", "position": 2, "name": "Meeting Scheduler", "item": "https://huddlr.co/meeting-scheduler/" }
+    ]
+  }
+  </script>
+
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#2563eb">
+
+  <!-- Tailwind — pinned to match index.html (see the note there). -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { borderRadius: { '2xl': '1rem', '3xl': '1.25rem' } } }
+    }
+  </script>
+</head>
+<body class="bg-white text-gray-900 min-h-screen antialiased overflow-x-hidden" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5;">
+
+<!-- ── HEADER ─────────────────────────────────────────────── -->
+<nav class="sticky top-0 z-50 bg-white border-b border-gray-100">
+  <div class="max-w-2xl mx-auto px-5 h-14 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-2 font-bold text-blue-600 hover:text-blue-700 transition-colors text-sm">
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="4" rx="2"/>
+        <rect x="3" y="10" width="13" height="4" rx="2" fill-opacity="0.55"/>
+        <rect x="3" y="15" width="9" height="4" rx="2" fill-opacity="0.55"/>
+      </svg>
+      Huddlr
+    </a>
+    <a href="/" class="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg transition-all">
+      Open Huddlr
+    </a>
+  </div>
+</nav>
+
+<main class="max-w-2xl mx-auto px-5 pt-14 pb-24">
+
+  <!-- Hero -->
+  <div class="text-center mb-14">
+    <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl shadow-sm mb-5" style="background:#2563eb">
+      <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+      </svg>
+    </div>
+    <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 mb-4">
+      A group meeting scheduler that finds a time everyone can make
+    </h1>
+    <p class="text-gray-500 text-base leading-relaxed max-w-lg mx-auto mb-8">
+      Stop trading "when are you free?" messages. Propose a handful of time slots, share one link, and let everyone vote. Huddlr tallies the responses and shows the meeting time that works for the most people.
+    </p>
+    <a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all">
+      Create a meeting poll — free
+      <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+    <p class="text-xs text-gray-400 mt-3">No account needed to vote · Works on any device</p>
+  </div>
+
+  <!-- How it works -->
+  <section class="mb-16">
+    <h2 class="text-xl font-bold text-gray-900 mb-8 text-center">How to schedule a meeting with your group</h2>
+    <ol class="space-y-6">
+      <li class="flex gap-4">
+        <span class="shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center">1</span>
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-1">Propose your time options</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Add the dates and times you're considering — a few morning and afternoon slots across a couple of days is plenty. Everyone sees times in their own timezone, so remote teams don't have to do the math.</p>
+        </div>
+      </li>
+      <li class="flex gap-4">
+        <span class="shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center">2</span>
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-1">Share one link</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Send the poll link by text, email, Slack, or QR code. Invitees just tap the slots that work for them — no app to install and no account to create.</p>
+        </div>
+      </li>
+      <li class="flex gap-4">
+        <span class="shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center">3</span>
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-1">Confirm the winning time</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Watch votes come in live and see which slot has the widest overlap. Lock it in and everyone knows when to show up.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- Why -->
+  <section class="mb-16">
+    <h2 class="text-xl font-bold text-gray-900 mb-6 text-center">Why it beats a group chat</h2>
+    <ul class="space-y-4 max-w-lg mx-auto">
+      <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+        <svg viewBox="0 0 24 24" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><span class="font-semibold text-gray-900">No counting replies by hand.</span> Huddlr tallies every vote automatically, so you're not scrolling a thread trying to tell who can make Thursday.</span>
+      </li>
+      <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+        <svg viewBox="0 0 24 24" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><span class="font-semibold text-gray-900">Timezone-aware.</span> Each person sees the options in their local time, which makes it a genuinely simple scheduler for distributed teams and far-flung friends.</span>
+      </li>
+      <li class="flex gap-3 text-sm text-gray-600 leading-relaxed">
+        <svg viewBox="0 0 24 24" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><span class="font-semibold text-gray-900">Free, with nothing to install.</span> No paid tiers to compare and no sign-up wall for the people you invite — a free meeting scheduler that just works in the browser.</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- FAQ -->
+  <section class="mb-16">
+    <h2 class="text-xl font-bold text-gray-900 mb-6 text-center">Questions about scheduling meetings</h2>
+    <div class="space-y-5 max-w-lg mx-auto">
+      <div>
+        <h3 class="font-semibold text-gray-900 text-sm mb-1">Is the meeting scheduler free?</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Yes. Creating a meeting poll and collecting votes is free, and there's no credit card or account required to start.</p>
+      </div>
+      <div>
+        <h3 class="font-semibold text-gray-900 text-sm mb-1">Do people need to sign up to pick a time?</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">No. Anyone with the link can vote on the proposed slots — they never have to register or log in.</p>
+      </div>
+      <div>
+        <h3 class="font-semibold text-gray-900 text-sm mb-1">What if there's no single time that works for everyone?</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Huddlr shows you the slot with the most availability so you can pick the best compromise. If you'd rather have people paint their full availability instead of voting on fixed slots, try an <a href="/availability-poll/" class="text-blue-600 hover:underline">availability poll</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <div class="text-center bg-gray-50 border border-gray-100 rounded-2xl p-8">
+    <h2 class="text-lg font-bold text-gray-900 mb-2">Ready to find a time?</h2>
+    <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">Create a meeting poll in under a minute and send it to your group.</p>
+    <a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all">
+      Start scheduling — free
+      <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+</main>
+
+<!-- ── FOOTER ─────────────────────────────────────────────── -->
+<footer class="border-t border-gray-100">
+  <div class="max-w-2xl mx-auto px-5 py-10">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">More ways to decide as a group</p>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8 text-sm">
+      <a href="/meeting-scheduler/" class="text-gray-900 font-semibold">Meeting scheduler</a>
+      <a href="/availability-poll/" class="text-gray-500 hover:text-blue-600 transition-colors">Availability poll</a>
+      <a href="/ranked-choice-vote/" class="text-gray-500 hover:text-blue-600 transition-colors">Ranked-choice vote</a>
+      <a href="/rsvp/" class="text-gray-500 hover:text-blue-600 transition-colors">RSVP &amp; headcount</a>
+    </div>
+    <div class="flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2 font-bold text-blue-600 text-sm">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="4" rx="2"/><rect x="3" y="10" width="13" height="4" rx="2" fill-opacity="0.55"/><rect x="3" y="15" width="9" height="4" rx="2" fill-opacity="0.55"/>
+        </svg>
+        Huddlr
+      </a>
+      <span class="text-xs text-gray-400">Free group scheduling &amp; polls</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

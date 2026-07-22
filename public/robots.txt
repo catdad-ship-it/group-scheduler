@@ -1,6 +1,8 @@
-# huddlr.co — allow the marketing homepage, keep the app/API out of the index.
+# huddlr.co — crawl the marketing pages, keep the app/API out of the index.
+# Marketing pages (/, /meeting-scheduler, /availability-poll, …) are static
+# files under public/ and are crawlable by default. The Disallow rules below
+# fence off the SPA's app/API routes, which the canonical also collapses to /.
 User-agent: *
-Allow: /$
 Disallow: /api/
 Disallow: /dashboard
 Disallow: /clients/
