@@ -516,7 +516,7 @@
     <div id="schedule-options-section">
       <div class="mb-3">
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Time Options</label>
-        <p class="text-xs text-gray-500 mt-0.5">Add one or more start–end times under each day. Times use your browser's local timezone.</p>
+        <p class="text-xs text-gray-500 mt-0.5">Add one or more times under each day. Times use your browser's local timezone. End times are optional — clear one to leave that option open-ended.</p>
       </div>
       <div class="space-y-3" id="slots-list"></div>
       <button onclick="addScheduleDay()"
@@ -1931,15 +1931,25 @@ function renderScheduleDays() {
     const showRemoveDay = scheduleDays.length > 1;
     const times = day.times.map(t => {
       const showRemoveTime = day.times.length > 1;
+      // End is optional: show a clear (×) affordance only when one is actually set,
+      // so an empty End field reads as "open-ended" rather than "not filled in yet".
+      const clearEndBtn = t.end
+        ? `<button onclick="clearScheduleTimeEnd('${day.id}','${t.id}')" title="Clear end time" aria-label="Clear end time"
+             class="w-6 h-6 flex items-center justify-center rounded-md shrink-0 text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all">
+             <i data-lucide="x" class="w-3.5 h-3.5"></i>
+           </button>`
+        : `<span class="w-6 shrink-0"></span>`;
       return `
         <div class="schedule-time flex items-center gap-2" data-time-id="${t.id}">
-          <div class="flex-1 flex items-center gap-2">
+          <div class="flex-1 flex items-center gap-2 min-w-0">
             <span class="text-[10px] font-semibold text-blue-500 uppercase tracking-wider w-9 shrink-0">Start</span>
             <input type="time" value="${t.start}" class="time-start flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white">
           </div>
-          <div class="flex-1 flex items-center gap-2">
-            <span class="text-[10px] font-semibold text-blue-500 uppercase tracking-wider w-7 shrink-0">End</span>
-            <input type="time" value="${t.end}" class="time-end flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white">
+          <div class="flex-1 flex items-center gap-1.5 min-w-0">
+            <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-7 shrink-0" title="Optional">End</span>
+            <input type="time" value="${t.end}" aria-label="End time (optional)"
+              class="time-end flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white">
+            ${clearEndBtn}
           </div>
           <button onclick="removeScheduleTime('${day.id}','${t.id}')" title="Remove time" aria-label="Remove time"
             class="w-8 h-8 flex items-center justify-center rounded-lg transition-all shrink-0 ${showRemoveTime ? 'text-gray-400 hover:text-red-400 hover:bg-red-50' : 'invisible pointer-events-none'}">
@@ -1999,7 +2009,20 @@ function addScheduleTime(dayId) {
   const day = scheduleDays.find(d => d.id === dayId);
   if (!day) return;
   const last = day.times[day.times.length - 1];
-  day.times.push({ id: newTimeId(), start: last ? last.end : '12:00', end: last ? addHour(last.end) : '13:00' });
+  // An open-ended previous time has no end to chain from — fall back to its start.
+  const base = last ? (last.end || last.start || '12:00') : '12:00';
+  day.times.push({ id: newTimeId(), start: base, end: addHour(base) });
+  renderScheduleDays();
+}
+
+// End times are optional; clearing one makes that option open-ended.
+function clearScheduleTimeEnd(dayId, timeId) {
+  syncScheduleDaysFromDOM();
+  const day = scheduleDays.find(d => d.id === dayId);
+  if (!day) return;
+  const t = day.times.find(x => x.id === timeId);
+  if (!t) return;
+  t.end = '';
   renderScheduleDays();
 }
 
@@ -2098,10 +2121,12 @@ async function createPoll() {
       if (!day.date) { errEl.textContent = 'Please pick a date for every day.'; return; }
       const [y, mo, d] = day.date.split('-').map(Number);
       for (const t of day.times) {
-        if (!t.start || !t.end) { errEl.textContent = 'Please fill in every start and end time.'; return; }
+        if (!t.start) { errEl.textContent = 'Please fill in every start time.'; return; }
         const [sh, sm] = t.start.split(':').map(Number);
-        const [eh, em] = t.end.split(':').map(Number);
         const startMs = new Date(y, mo - 1, d, sh, sm).getTime();
+        // End time is optional — a slot without one is open-ended.
+        if (!t.end) { slots.push({ datetime: startMs }); continue; }
+        const [eh, em] = t.end.split(':').map(Number);
         const endMs   = new Date(y, mo - 1, d, eh, em).getTime();
         if (endMs <= startMs) { errEl.textContent = 'End time must be after start time on each option.'; return; }
         slots.push({ datetime: startMs, endDatetime: endMs });
@@ -3831,9 +3856,9 @@ function populateSlotBuilderFrom(poll) {
       const key = dateStrFromDate(d);
       if (!byDate[key]) { byDate[key] = { id: newDayId(), date: key, times: [] }; scheduleDays.push(byDate[key]); }
       const startStr = `${p(d.getHours())}:${p(d.getMinutes())}`;
-      let endStr;
+      // Open-ended slots stay open-ended through an edit/duplicate — don't backfill an end.
+      let endStr = '';
       if (s.endDatetime) { const e = new Date(s.endDatetime); endStr = `${p(e.getHours())}:${p(e.getMinutes())}`; }
-      else endStr = addHour(startStr);
       byDate[key].times.push({ id: newTimeId(), start: startStr, end: endStr });
     });
     if (!scheduleDays.length) initScheduleDays(); else renderScheduleDays();
