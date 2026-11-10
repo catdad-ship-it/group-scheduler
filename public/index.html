@@ -165,7 +165,7 @@
       will-change: transform;
       pointer-events: none;
     }
-    .seg[data-active="grid"] .seg-thumb { transform: translateX(100%); }
+    .seg[data-i="1"] .seg-thumb { transform: translateX(100%); }
     .seg-btn {
       position: relative;
       z-index: 1;
@@ -182,6 +182,7 @@
       font-size: 12px;
       font-weight: 600;
       line-height: 1.4;
+      white-space: nowrap;
       color: #6b7280;
       cursor: pointer;
       transition: color .2s ease;
@@ -3105,16 +3106,65 @@ async function saveTitle() {
 // ────────────────────────────────────────────────────
 // SORT TOGGLE
 // ────────────────────────────────────────────────────
-function toggleResultsSort() {
-  resultsSortByScore = !resultsSortByScore;
+function setResultsSort(order) {
+  if (order !== 'original' && order !== 'best') return;
+  const byScore = order === 'best';
+  if (resultsSortByScore === byScore) return;
+  resultsSortByScore = byScore;
+
+  slideSeg('results-sort', order);
+
   if (currentPoll?.type === 'question') {
-    const sec = document.getElementById('q-results-section');
-    if (sec) { sec.innerHTML = renderQuestionResults(currentPoll); renderIcons(); }
+    const body = document.getElementById('q-results-body');
+    if (body) {
+      body.innerHTML = renderQuestionResultsBody(currentPoll);
+    } else {
+      const sec = document.getElementById('q-results-section');
+      if (sec) sec.innerHTML = renderQuestionResults(currentPoll);
+    }
   } else {
-    const tz  = getUserTimezone();
-    const sec = document.getElementById('results-section');
-    if (sec) { sec.innerHTML = renderResults(currentPoll, tz); renderIcons(); }
+    const body = document.getElementById('results-body');
+    if (body) {
+      body.innerHTML = renderResultsBody(currentPoll, getUserTimezone());
+    } else {
+      const sec = document.getElementById('results-section');
+      if (sec) sec.innerHTML = renderResults(currentPoll, getUserTimezone());
+    }
   }
+  renderIcons();
+}
+
+
+// ── Segmented pill toggle (shared) ───────────────────
+// options: [{ value, icon, label }] — exactly two, since the thumb is half-width.
+function segToggle({ name, label, options, active, handler }) {
+  const i = Math.max(0, options.findIndex(o => o.value === active));
+  const btns = options.map(o => {
+    const on = o.value === active;
+    return `<button type="button" role="tab" data-seg-value="${o.value}" aria-selected="${on}"
+       class="seg-btn ${on ? 'is-active' : ''}" onclick="${handler}('${o.value}')">
+       ${o.icon ? `<i data-lucide="${o.icon}" class="w-3.5 h-3.5 shrink-0"></i>` : ''}${o.label}
+     </button>`;
+  }).join('');
+  return `<div class="seg" role="tablist" aria-label="${label}" data-seg="${name}" data-i="${i}">
+      <span class="seg-thumb" aria-hidden="true"></span>
+      ${btns}
+    </div>`;
+}
+
+// Move the thumb and the active label without re-rendering the pill, so it animates.
+function slideSeg(name, value) {
+  document.querySelectorAll(`.seg[data-seg="${name}"]`).forEach(seg => {
+    const btns = [...seg.querySelectorAll('.seg-btn')];
+    const i = btns.findIndex(b => b.dataset.segValue === value);
+    if (i < 0) return;
+    seg.dataset.i = String(i);
+    btns.forEach(b => {
+      const on = b.dataset.segValue === value;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+  });
 }
 
 function setResultsView(mode) {
@@ -3125,16 +3175,7 @@ function setResultsView(mode) {
   const sec = document.getElementById('results-section');
   if (!sec) return;
 
-  // Slide the pill without re-rendering it, so the thumb animates.
-  const seg = sec.querySelector('.seg');
-  if (seg) {
-    seg.dataset.active = mode;
-    seg.querySelectorAll('.seg-btn').forEach(btn => {
-      const on = btn.dataset.view === mode;
-      btn.classList.toggle('is-active', on);
-      btn.setAttribute('aria-selected', String(on));
-    });
-  }
+  slideSeg('results-view', mode);
 
   const body = document.getElementById('results-body');
   if (body) {
@@ -3145,9 +3186,6 @@ function setResultsView(mode) {
   renderIcons();
 }
 
-function toggleResultsView() {
-  setResultsView(resultsViewMode === 'grid' ? 'list' : 'grid');
-}
 
 // ────────────────────────────────────────────────────
 // QUESTION POLL RENDER
@@ -3265,6 +3303,34 @@ async function submitQuestionVote() {
 }
 
 function renderQuestionResults(poll) {
+  return renderQuestionResultsHeader(poll) +
+    `<div id="q-results-body">${renderQuestionResultsBody(poll)}</div>`;
+}
+
+function renderQuestionResultsHeader(poll) {
+  const qSortToggle = poll.votes.length > 1
+    ? segToggle({
+        name: 'results-sort',
+        label: 'Results order',
+        options: [
+          { value: 'original', label: 'Original' },
+          { value: 'best',     label: 'Best first' }
+        ],
+        active: resultsSortByScore ? 'best' : 'original',
+        handler: 'setResultsSort'
+      })
+    : '';
+  return `
+    <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+      <h2 class="font-bold text-gray-900">Results</h2>
+      <div class="flex items-center flex-wrap gap-x-3 gap-y-2">
+        ${qSortToggle}
+        <span class="text-xs text-gray-500">Ranked-choice</span>
+      </div>
+    </div>`;
+}
+
+function renderQuestionResultsBody(poll) {
   const n = poll.slots.length;
 
   const scores = {};
@@ -3285,17 +3351,8 @@ function renderQuestionResults(poll) {
   const sorted = [...poll.slots].sort((a, b) => scores[b.id] - scores[a.id]);
   const winnerScore = scores[sorted[0].id];
 
-  const qSortToggle = poll.votes.length > 1
-    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-500 transition-colors">
-        <i data-lucide="arrow-up-down" class="w-3 h-3"></i> ${resultsSortByScore ? 'Original order' : 'Best first'}
-       </button>`
-    : '';
-
   if (poll.votes.length === 0) {
     return `
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="font-bold text-gray-900">Results</h2>
-      </div>
       <div class="text-center py-10 bg-gray-50 border border-gray-100 rounded-2xl">
         <i data-lucide="bar-chart-2" class="w-8 h-8 text-gray-400 mx-auto mb-3"></i>
         <p class="text-sm text-gray-500">No votes yet — share the link to get responses!</p>
@@ -3326,13 +3383,6 @@ function renderQuestionResults(poll) {
   }).join('');
 
   return `
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="font-bold text-gray-900">Results</h2>
-      <div class="flex items-center gap-3">
-        ${qSortToggle}
-        <span class="text-xs text-gray-500">Ranked-choice</span>
-      </div>
-    </div>
     <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 space-y-4">
       ${rows}
     </div>
@@ -3606,21 +3656,28 @@ function renderResults(poll, tz) {
 
 function renderResultsHeader(poll) {
   const sortToggle = poll.votes.length > 1
-    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-500 transition-colors whitespace-nowrap">
-        <i data-lucide="arrow-up-down" class="w-3 h-3 shrink-0"></i> ${resultsSortByScore ? 'Original order' : 'Best first'}
-       </button>`
+    ? segToggle({
+        name: 'results-sort',
+        label: 'Results order',
+        options: [
+          { value: 'original', label: 'Original' },
+          { value: 'best',     label: 'Best first' }
+        ],
+        active: resultsSortByScore ? 'best' : 'original',
+        handler: 'setResultsSort'
+      })
     : '';
-  const segBtn = (mode, icon, label) =>
-    `<button type="button" role="tab" data-view="${mode}" aria-selected="${resultsViewMode === mode}"
-       class="seg-btn ${resultsViewMode === mode ? 'is-active' : ''}" onclick="setResultsView('${mode}')">
-       <i data-lucide="${icon}" class="w-3.5 h-3.5"></i> ${label}
-     </button>`;
   const viewToggle = poll.votes.length >= 1
-    ? `<div class="seg" role="tablist" aria-label="Results view" data-active="${resultsViewMode}">
-        <span class="seg-thumb" aria-hidden="true"></span>
-        ${segBtn('list', 'list', 'List')}
-        ${segBtn('grid', 'layout-grid', 'Grid')}
-       </div>`
+    ? segToggle({
+        name: 'results-view',
+        label: 'Results view',
+        options: [
+          { value: 'list', icon: 'list',        label: 'List' },
+          { value: 'grid', icon: 'layout-grid', label: 'Grid' }
+        ],
+        active: resultsViewMode,
+        handler: 'setResultsView'
+      })
     : '';
   return `
     <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
