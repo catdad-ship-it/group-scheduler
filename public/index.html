@@ -141,6 +141,59 @@
     .vbtn.sel-maybe { background: #f59e0b !important; color: #fff !important; border-color: #f59e0b !important; }
     .vbtn.sel-no    { background: #ef4444 !important; color: #fff !important; border-color: #ef4444 !important; }
 
+    /* ── Segmented pill toggle (iOS style) ────────── */
+    .seg {
+      position: relative;
+      display: inline-flex;
+      align-items: stretch;
+      padding: 2px;
+      border-radius: 999px;
+      background: #eef0f3;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .seg-thumb {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      bottom: 2px;
+      width: calc(50% - 2px);
+      border-radius: 999px;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 1px rgba(0,0,0,.06);
+      transition: transform .28s cubic-bezier(.32,.72,0,1);
+      will-change: transform;
+      pointer-events: none;
+    }
+    .seg[data-active="grid"] .seg-thumb { transform: translateX(100%); }
+    .seg-btn {
+      position: relative;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      flex: 1 1 0;
+      min-width: 64px;
+      padding: 4px 12px;
+      border: 0;
+      background: none;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: #6b7280;
+      cursor: pointer;
+      transition: color .2s ease;
+    }
+    .seg-btn:hover { color: #374151; }
+    .seg-btn.is-active { color: #111827; }
+    .seg-btn:active { transform: scale(.97); }
+    .seg-btn:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      .seg-thumb { transition: none; }
+    }
+
     /* ── Ranked choice ────────────────────────────── */
     .rc-option { transition: all 0.15s; }
     .rc-option.ranked { border-color: #3b82f6 !important; background: #eff6ff !important; }
@@ -3064,11 +3117,36 @@ function toggleResultsSort() {
   }
 }
 
-function toggleResultsView() {
-  resultsViewMode = resultsViewMode === 'grid' ? 'list' : 'grid';
-  const tz  = getUserTimezone();
+function setResultsView(mode) {
+  if (mode !== 'grid' && mode !== 'list') return;
+  if (resultsViewMode === mode) return;
+  resultsViewMode = mode;
+
   const sec = document.getElementById('results-section');
-  if (sec) { sec.innerHTML = renderResults(currentPoll, tz); renderIcons(); }
+  if (!sec) return;
+
+  // Slide the pill without re-rendering it, so the thumb animates.
+  const seg = sec.querySelector('.seg');
+  if (seg) {
+    seg.dataset.active = mode;
+    seg.querySelectorAll('.seg-btn').forEach(btn => {
+      const on = btn.dataset.view === mode;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-selected', String(on));
+    });
+  }
+
+  const body = document.getElementById('results-body');
+  if (body) {
+    body.innerHTML = renderResultsBody(currentPoll, getUserTimezone());
+  } else {
+    sec.innerHTML = renderResults(currentPoll, getUserTimezone());
+  }
+  renderIcons();
+}
+
+function toggleResultsView() {
+  setResultsView(resultsViewMode === 'grid' ? 'list' : 'grid');
 }
 
 // ────────────────────────────────────────────────────
@@ -3513,7 +3591,7 @@ function avatarChip(name, response) {
   const styles = {
     yes:   'background:#16a34a;color:#fff',
     maybe: 'background:#f59e0b;color:#fff',
-    no:    'background:#f3f4f6;color:#9ca3af',
+    no:    'background:#ef4444;color:#fff',
     none:  'background:#fff;color:#d1d5db;border:1px dashed #e5e7eb'
   };
   const label = response === 'yes' ? 'Yes' : response === 'maybe' ? 'Maybe' : response === 'no' ? 'No' : 'No response';
@@ -3522,30 +3600,44 @@ function avatarChip(name, response) {
 }
 
 function renderResults(poll, tz) {
+  return renderResultsHeader(poll) +
+    `<div id="results-body">${renderResultsBody(poll, tz)}</div>`;
+}
+
+function renderResultsHeader(poll) {
   const sortToggle = poll.votes.length > 1
-    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-500 transition-colors">
-        <i data-lucide="arrow-up-down" class="w-3 h-3"></i> ${resultsSortByScore ? 'Original order' : 'Best first'}
+    ? `<button onclick="toggleResultsSort()" class="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-500 transition-colors whitespace-nowrap">
+        <i data-lucide="arrow-up-down" class="w-3 h-3 shrink-0"></i> ${resultsSortByScore ? 'Original order' : 'Best first'}
        </button>`
     : '';
+  const segBtn = (mode, icon, label) =>
+    `<button type="button" role="tab" data-view="${mode}" aria-selected="${resultsViewMode === mode}"
+       class="seg-btn ${resultsViewMode === mode ? 'is-active' : ''}" onclick="setResultsView('${mode}')">
+       <i data-lucide="${icon}" class="w-3.5 h-3.5"></i> ${label}
+     </button>`;
   const viewToggle = poll.votes.length >= 1
-    ? `<button onclick="toggleResultsView()" class="flex items-center gap-1 text-xs font-semibold text-blue-500 hover:text-blue-600 transition-colors">
-        <i data-lucide="${resultsViewMode === 'grid' ? 'list' : 'layout-grid'}" class="w-3.5 h-3.5"></i> ${resultsViewMode === 'grid' ? 'List view' : 'Grid view'}
-       </button>`
+    ? `<div class="seg" role="tablist" aria-label="Results view" data-active="${resultsViewMode}">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        ${segBtn('list', 'list', 'List')}
+        ${segBtn('grid', 'layout-grid', 'Grid')}
+       </div>`
     : '';
-  const header = `
+  return `
     <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
       <h2 class="font-bold text-gray-900">Results</h2>
-      <div class="flex items-center gap-3 text-xs text-gray-500">
+      <div class="flex items-center flex-wrap gap-x-3 gap-y-2 text-xs text-gray-500">
         ${viewToggle}
         ${sortToggle}
         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span> Yes</span>
         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Maybe</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-gray-300 inline-block"></span> No</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span> No</span>
       </div>
     </div>`;
+}
 
+function renderResultsBody(poll, tz) {
   if (poll.votes.length === 0) {
-    return header + `
+    return `
       <div class="text-center py-10 bg-gray-50 border border-gray-100 rounded-2xl">
         <i data-lucide="bar-chart-2" class="w-8 h-8 text-gray-400 mx-auto mb-3"></i>
         <p class="text-sm text-gray-500">No votes yet — share the link to get responses!</p>
@@ -3645,7 +3737,7 @@ function renderResults(poll, tz) {
     footer = `Times shown in your local timezone (${esc(tz)}). Tap a name to see how they voted; hit Confirm to lock in a time.`;
   }
 
-  return header + `
+  return `
     ${body}
     <p class="mt-3 text-xs text-gray-500 flex items-start gap-1">
       <i data-lucide="clock" class="w-3 h-3 mt-0.5 shrink-0"></i>
